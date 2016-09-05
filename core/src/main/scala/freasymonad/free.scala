@@ -99,7 +99,7 @@ object freeImpl {
                      case ..${methods.map {m =>
                         val binds = m.vparamss.head.collect { case t:ValDef => Bind (t.name, Ident(termNames.WILDCARD))}
                         val args = m.vparamss.head.collect { case t:ValDef => Ident(t.name.toTermName) }
-                        cq"ADT.${TermName(m.name.toString.capitalize)}(..$binds) => ${m.name}(..$args)"
+                        cq"${sealTrait.name.toTermName}.${TermName(m.name.toString.capitalize)}(..$binds) => ${m.name}(..$args)"
                      }}
                    }
                  }
