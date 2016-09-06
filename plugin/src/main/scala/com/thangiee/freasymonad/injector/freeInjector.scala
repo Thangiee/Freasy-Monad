@@ -46,23 +46,32 @@ class freeInjector extends SyntheticMembersInjector {
               s"def $fName$params: M[${rt.canonicalText}]"
             }
 
-            Seq(
+            val allBody =
               s"""
-                |object all extends ${scTrait.name} {
-                |  object $sealTraitName {
-                |    ${grammarADTClasses.mkString("\n")}
-                |  }
-                |  trait Interpreter[M[_]] {
-                |    val interpreter = new ($sealTraitName ~> M) {
-                |      def apply[A](fa: $sealTraitName[A]): M[A] = fa match {
-                |        ${patternMatchCases.mkString("\n")}
-                |      }
+                |object $sealTraitName {
+                |  ${grammarADTClasses.mkString("\n")}
+                |}
+                |trait Interpreter[M[_]] {
+                |  val interpreter = new ($sealTraitName ~> M) {
+                |    def apply[A](fa: $sealTraitName[A]): M[A] = fa match {
+                |      ${patternMatchCases.mkString("\n")}
                 |    }
-                |    ${funcsToBeImpl.mkString("\n")}
-                |    def run[A](op: $typeAliasName[A])(implicit m: Monad[M], r: RecursiveTailRecM[M]): M[A] = op.foldMap(interpreter)
                 |  }
+                |  ${funcsToBeImpl.mkString("\n")}
+                |  def run[A](op: $typeAliasName[A])(implicit m: Monad[M], r: RecursiveTailRecM[M]): M[A] = op.foldMap(interpreter)
                 |}
               """.stripMargin
+
+            //Seq(
+            //  s"trait all extends ${scTrait.name} { $allBody }",
+            //  s"object all extends all
+            //)
+
+            // work around for `object all extends all` not showing in Intellij
+            val stubs = absFuncs.map(_.text + " = ???").mkString("\n")
+            Seq(
+              s"trait all extends ${scTrait.name} { $allBody; $stubs }",
+              s"object all extends ${scTrait.name} { $allBody }"
             )
           case _ => Seq.empty
         }

@@ -83,7 +83,7 @@ object freeImpl {
               import cats._
               import scala.language.higherKinds
 
-              object all extends $tpname {
+              trait all extends $tpname {
                 trait Interpreter[M[_]] {
                   val interpreter = new (${sealedTrait.name} ~> M) {
                     def apply[A](fa: ${sealedTrait.name}[A]): M[A] = fa match {
@@ -101,11 +101,12 @@ object freeImpl {
                   ..${absMethods.map(m => q"def ${m.name}[..${m.tparams}](...${m.vparamss}): ${replaceContainerType(m.tpt, TypeName("M"))}")}
                 }
               }
+              object all extends all
             }
            """
 
         val gen = q"..${List(genTrait, genCompanionObj)}"
-//        println(showCode(gen))
+        println(showCode(gen))
         c.Expr[Any](gen)
 
       case other => c.abort(c.enclosingPosition, s"${showRaw(other)}")
