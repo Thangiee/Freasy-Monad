@@ -6,7 +6,7 @@ import scala.reflect.api.Trees
 import scala.reflect.macros.blackbox
 
 class free extends StaticAnnotation {
-  def macroTransform(annottees: Any*) = macro freeImpl.impl
+  def macroTransform(annottees: Any*): Any = macro freeImpl.impl
 }
 
 object freeImpl {
@@ -69,7 +69,6 @@ object freeImpl {
         val genTrait =
           q"""
             $mods trait $tpname[..$tparams] extends { ..$earlydefns } with ..$parents { $self =>
-              import cats.free.Free
               $typeAlias
               $sealedTrait
               ..$grammar
@@ -106,7 +105,7 @@ object freeImpl {
            """
 
         val gen = q"..${List(genTrait, genCompanionObj)}"
-//        println((showCode(gen)))
+//        println(showCode(gen))
         c.Expr[Any](gen)
 
       case other => c.abort(c.enclosingPosition, s"${showRaw(other)}")

@@ -7,14 +7,14 @@ import scala.collection.mutable
 import scala.concurrent.duration.Duration
 import scala.concurrent.{Await, Future}
 
-@free trait KVStoreA {
-  type KVStore[A] = Free[GrammarADT, A]
+@free trait KVStore {
+  type KVStoreF[A] = Free[GrammarADT, A]
   sealed trait GrammarADT[A]
 
-  def put[T](key: String, value: T): KVStore[Unit]
-  def get[T](key: String): KVStore[Option[T]]
+  def put[T](key: String, value: T): KVStoreF[Unit]
+  def get[T](key: String): KVStoreF[Option[T]]
 
-  def update[T](key: String, f: T => T): KVStore[Unit] =
+  def update[T](key: String, f: T => T): KVStoreF[Unit] =
     for {
       vMaybe <- get[T](key)
       _      <- vMaybe.map(v => put[T](key, f(v))).getOrElse(Free.pure(()))
@@ -22,9 +22,9 @@ import scala.concurrent.{Await, Future}
 }
 
 object Main extends App {
-  import KVStoreA.all._
+  import KVStore.all._
 
-  def program: KVStore[Option[Int]] =
+  def program: KVStoreF[Option[Int]] =
     for {
       _ <- put("wild-cats", 2)
       _ <- update[Int]("wild-cats", _ + 12)
