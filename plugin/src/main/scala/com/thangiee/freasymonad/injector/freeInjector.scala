@@ -51,7 +51,7 @@ class freeInjector extends SyntheticMembersInjector {
                 |object $sealTraitName {
                 |  ${grammarADTClasses.mkString("\n")}
                 |}
-                |trait Interpreter[M[_]] {
+                |trait ${scTrait.name}Interp[M[_]] {
                 |  val interpreter = new ($sealTraitName ~> M) {
                 |    def apply[A](fa: $sealTraitName[A]): M[A] = fa match {
                 |      ${patternMatchCases.mkString("\n")}

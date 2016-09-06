@@ -32,7 +32,7 @@ object Main extends App {
       n <- get[Int]("wild-cats")
     } yield n
 
-  val idInterpreter = new Interpreter[Id] {
+  val idInterpreter = new KVStoreInterp[Id] {
     val kvs = mutable.Map.empty[String, Any]
     def get[T](key: String): Id[Option[T]] = {
       println(s"get($key)")
@@ -48,7 +48,7 @@ object Main extends App {
   import cats.implicits.catsStdInstancesForFuture
   import scala.concurrent.ExecutionContext.Implicits.global
 
-  val futureInterpreter = new Interpreter[Future] {
+  val futureInterpreter = new KVStoreInterp[Future] {
     val kvs = mutable.Map.empty[String, Any]
     def get[T](key: String): Future[Option[T]] = Future {
       println(s"get($key)")

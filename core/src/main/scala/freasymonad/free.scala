@@ -84,7 +84,7 @@ object freeImpl {
               import scala.language.higherKinds
 
               trait all extends $tpname {
-                trait Interpreter[M[_]] {
+                trait ${TypeName(tpname.toString + "Interp")}[M[_]] {
                   val interpreter = new (${sealedTrait.name} ~> M) {
                     def apply[A](fa: ${sealedTrait.name}[A]): M[A] = fa match {
                       case ..${absMethods.map {m =>
