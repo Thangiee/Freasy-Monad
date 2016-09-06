@@ -92,24 +92,27 @@ object freeImpl {
 
         val genCompanionObj =
           q"""
-            object ${tpname.toTermName} extends $tpname {
+            object ${tpname.toTermName} {
               import cats._
               import scala.language.higherKinds
-              trait Interpreter[M[_]] {
-                val interpreter = new (${sealTrait.name} ~> M) {
-                  def apply[A](fa: ${sealTrait.name}[A]): M[A] = fa match {
-                    case ..${methods.map {m =>
-                      val binds = m.vparamss.head.collect { case t:ValDef => Bind (t.name, Ident(termNames.WILDCARD))}
-                      val args = m.vparamss.head.collect { case t:ValDef => Ident(t.name.toTermName) }
-                      cq"${sealTrait.name.toTermName}.${TermName(m.name.toString.capitalize)}(..$binds) => ${m.name}(..$args)"
-                    }}
+
+              object all extends $tpname {
+                trait Interpreter[M[_]] {
+                  val interpreter = new (${sealTrait.name} ~> M) {
+                    def apply[A](fa: ${sealTrait.name}[A]): M[A] = fa match {
+                      case ..${methods.map {m =>
+                        val binds = m.vparamss.head.collect { case t:ValDef => Bind (t.name, Ident(termNames.WILDCARD))}
+                        val args = m.vparamss.head.collect { case t:ValDef => Ident(t.name.toTermName) }
+                        cq"${sealTrait.name.toTermName}.${TermName(m.name.toString.capitalize)}(..$binds) => ${m.name}(..$args)"
+                      }}
+                    }
                   }
+
+                  def run[A](op: ${typeAlias.name}[A])(implicit m: Monad[M], r: RecursiveTailRecM[M]): M[A] =
+                   op.foldMap(interpreter)
+
+                  ..${methods.map(m => q"def ${m.name}[..${m.tparams}](...${m.vparamss}): ${replaceContainerType(m.tpt, TypeName("M"))}")}
                 }
-
-                def run[A](op: ${typeAlias.name}[A])(implicit m: Monad[M], r: RecursiveTailRecM[M]): M[A] =
-                 op.foldMap(interpreter)
-
-                ..${methods.map(m => q"def ${m.name}[..${m.tparams}](...${m.vparamss}): ${replaceContainerType(m.tpt, TypeName("M"))}")}
               }
             }
            """

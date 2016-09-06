@@ -4,6 +4,8 @@ import cats.Id
 import cats.free.Free
 
 import scala.collection.mutable
+import scala.concurrent.duration.Duration
+import scala.concurrent.{Await, Future}
 
 @free trait KVStoreA {
   type KVStore[A] = Free[GrammarADT, A]
@@ -20,7 +22,7 @@ import scala.collection.mutable
 }
 
 object Main extends App {
-  import KVStoreA._
+  import KVStoreA.all._
 
   def program: KVStore[Option[Int]] =
     for {
@@ -30,7 +32,7 @@ object Main extends App {
       n <- get[Int]("wild-cats")
     } yield n
 
-  val impureCompiler = new KVStoreA.Interpreter[Id] {
+  val idInterpreter = new Interpreter[Id] {
     val kvs = mutable.Map.empty[String, Any]
     def get[T](key: String): Id[Option[T]] = {
       println(s"get($key)")
@@ -41,6 +43,22 @@ object Main extends App {
       kvs(key) = value
     }
   }
+  val resId: Id[Option[Int]] = idInterpreter.run(program)
 
-  impureCompiler.run(program)
+  import cats.implicits.catsStdInstancesForFuture
+  import scala.concurrent.ExecutionContext.Implicits.global
+
+  val futureInterpreter = new Interpreter[Future] {
+    val kvs = mutable.Map.empty[String, Any]
+    def get[T](key: String): Future[Option[T]] = Future {
+      println(s"get($key)")
+      kvs.get(key).map(_.asInstanceOf[T])
+    }
+    def put[T](key: String, value: T): Future[Unit] = Future {
+      println(s"put($key, $value)")
+      kvs(key) = value
+    }
+  }
+  val resFuture: Future[Option[Int]] = futureInterpreter.run(program)
+  Await.ready(resFuture, Duration.Inf)
 }
