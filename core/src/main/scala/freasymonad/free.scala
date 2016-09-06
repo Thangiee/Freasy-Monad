@@ -18,6 +18,9 @@ object freeImpl {
 
     def abort(msg: String) = c.abort(c.enclosingPosition, msg)
 
+    // https://issues.scala-lang.org/browse/SI-8771
+    def fixSI88771(paramss: Any) = paramss.asInstanceOf[List[List[ValDef]]].map(_.map(_.duplicate))
+
     def replaceContainerType(tree: Trees#Tree, newType: TypeName): AppliedTypeTree = tree match {
       case AppliedTypeTree(_, inner) => AppliedTypeTree(Ident(newType), inner)
       case other => abort(s"Not an AppliedTypeTree: ${showRaw(other)}")
@@ -25,7 +28,6 @@ object freeImpl {
 
     def methodToCaseClassADT(sealedTrait: ClassDef, methodName: Name) =
       q"${sealedTrait.name.toTermName}.${TermName(methodName.toString.capitalize)}"
-
 
     trees.headOption match {
       case Some(q"$mods trait ${tpname:TypeName}[..$tparams] extends { ..$earlydefns } with ..$parents { $self => ..$stats }") =>
@@ -47,7 +49,7 @@ object freeImpl {
         val grammar = {
           val caseClasses = absMethods.collect {
             case q"$_ def $tname[..$tparams](...$paramss): ${AppliedTypeTree(_, returnType)} = $expr" =>
-              q"case class ${TypeName(tname.toString.capitalize)}[..$tparams](...$paramss) extends ${sealedTrait.name}[..$returnType]"
+              q"case class ${TypeName(tname.toString.capitalize)}[..$tparams](...${fixSI88771(paramss)}) extends ${sealedTrait.name}[..$returnType]"
           }
           q"object ${sealedTrait.name.toTermName} { ..$caseClasses }"
         }
@@ -98,7 +100,7 @@ object freeImpl {
                   def run[A](op: ${typeAlias.name}[A])(implicit m: Monad[M], r: RecursiveTailRecM[M]): M[A] =
                    op.foldMap(interpreter)
 
-                  ..${absMethods.map(m => q"def ${m.name}[..${m.tparams}](...${m.vparamss}): ${replaceContainerType(m.tpt, TypeName("M"))}")}
+                  ..${absMethods.map(m => q"def ${m.name}[..${m.tparams}](...${fixSI88771(m.vparamss)}): ${replaceContainerType(m.tpt, TypeName("M"))}")}
                 }
               }
               object all extends all
