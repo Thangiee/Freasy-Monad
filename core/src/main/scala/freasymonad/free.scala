@@ -1,7 +1,5 @@
 package freasymonad
 
-import com.typesafe.scalalogging.LazyLogging
-
 import scala.annotation.StaticAnnotation
 import scala.language.experimental.macros
 import scala.reflect.api.Trees
@@ -11,7 +9,7 @@ class free extends StaticAnnotation {
   def macroTransform(annottees: Any*) = macro freeImpl.impl
 }
 
-object freeImpl extends LazyLogging {
+object freeImpl {
 
   def impl(c: blackbox.Context)(annottees: c.Expr[Any]*): c.Expr[Any] = {
     import c.universe._
@@ -108,7 +106,7 @@ object freeImpl extends LazyLogging {
            """
 
         val gen = q"..${List(genTrait, genCompanionObj)}"
-        logger.debug(showCode(gen))
+//        println((showCode(gen)))
         c.Expr[Any](gen)
 
       case other => c.abort(c.enclosingPosition, s"${showRaw(other)}")

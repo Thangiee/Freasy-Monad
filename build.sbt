@@ -14,7 +14,6 @@ lazy val core = project
     libraryDependencies ++= Seq(
       "org.typelevel" %% "cats" % "0.7.2",
       "org.scala-lang" % "scala-reflect" % "2.11.8",
-      "com.typesafe.scala-logging" %% "scala-logging" % "3.4.0" % "provided",
       "ch.qos.logback" % "logback-classic" % "1.1.7" % "provided"
     ),
     addCompilerPlugin("org.scalamacros" % "paradise" % "2.1.0" cross CrossVersion.full)
