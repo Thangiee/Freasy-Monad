@@ -18,62 +18,50 @@ object freeImpl extends LazyLogging {
 
     val trees = annottees.map(_.tree).toList
 
+    def abort(msg: String) = c.abort(c.enclosingPosition, msg)
+
     def replaceContainerType(tree: Trees#Tree, newType: TypeName): AppliedTypeTree = tree match {
       case AppliedTypeTree(_, inner) => AppliedTypeTree(Ident(newType), inner)
-      case other => c.abort(c.enclosingPosition, s"Not an AppliedTypeTree: ${showRaw(other)}")
+      case other => abort(s"Not an AppliedTypeTree: ${showRaw(other)}")
     }
 
-    def extractFreeTypeAlias(stats: Seq[Trees#Tree]): TypeDef = stats.collectFirst[TypeDef] {
-      case t@TypeDef(_, _, _, AppliedTypeTree(Ident(TypeName("Free")), _)) => t
-    }.getOrElse(c.abort(c.enclosingPosition, s"Require a type alias for Free[S, A]"))
+    def methodToCaseClassADT(sealedTrait: ClassDef, methodName: Name) =
+      q"${sealedTrait.name.toTermName}.${TermName(methodName.toString.capitalize)}"
 
-    def extractADTSealedTrait(stats: Seq[Trees#Tree]): ClassDef = stats.collectFirst[ClassDef] {
-      case t:ClassDef if t.mods.hasFlag(Flag.SEALED) && t.mods.hasFlag(Flag.TRAIT) => t
-    }.getOrElse(c.abort(c.enclosingPosition, s"Require a sealed trait"))
 
-    def extractMethodsWithImp(stats: Seq[Trees#Tree]): Seq[DefDef] = stats.collect {
-      case m@DefDef(_, _, _, _, _, tree) if tree.nonEmpty => m
-    }
-
-    def extractMethodsWithNoImpl(stats: Seq[Trees#Tree]): Seq[DefDef] = stats.collect {
-      case m@DefDef(_, _, _, _, _, EmptyTree) => m
-    }
-
-    def genGrammarADT(sealTrait: ClassDef, methods: Seq[DefDef]) = {
-      val caseClasses = methods.collect {
-        case q"$_ def $tname[..$tparams](...$paramss): ${AppliedTypeTree(_, returnType)} = $expr" =>
-          q"case class ${TypeName(tname.toString.capitalize)}[..$tparams](...$paramss) extends ${sealTrait.name}[..$returnType]"
-      }
-      q"""
-         object ${sealTrait.name.toTermName} {
-           ..$caseClasses
-         }
-       """
-    }
-
-    val result: c.universe.Tree = trees.headOption match {
+    trees.headOption match {
       case Some(q"$mods trait ${tpname:TypeName}[..$tparams] extends { ..$earlydefns } with ..$parents { $self => ..$stats }") =>
-        val typeAlias: c.universe.TypeDef = extractFreeTypeAlias(stats)
-        val freeSType = typeAlias.rhs match {
-          case AppliedTypeTree(_, Ident(s) :: a) => s.toTypeName
+
+        val (typeAlias: TypeDef, freeSType) =
+          stats.collectFirst { case typeDef @ q"type $_[..$_] = Free[${Ident(s)}, $_]" => (typeDef, s) }
+            .getOrElse(abort("Require a type alias for Free[S, A]"))
+
+        val sealedTrait: ClassDef = stats.collectFirst {
+          case cd @ q"sealed trait $name[..$_]" if name == freeSType => cd.asInstanceOf[ClassDef]
+        }.getOrElse(abort(s"Require seal trait $freeSType[A]"))
+
+        val concreteMethods = stats.collect { case m@DefDef(_, _, _, _, _, rhs) if rhs.nonEmpty => m }
+
+        val absMethods: Seq[c.universe.DefDef] = stats.collect {
+          case m@DefDef(_, _, _, _, AppliedTypeTree(Ident(typ), _), EmptyTree) if typ == typeAlias.name => m
         }
 
-        val sealTrait = extractADTSealedTrait(stats)
-        if (sealTrait.name != freeSType) c.abort(c.enclosingPosition, s"Require seal trait ${freeSType.toString}[A]")
-
-        val methods = extractMethodsWithNoImpl(stats).collect {
-          case m@DefDef(_, _, _, _, AppliedTypeTree(Ident(typ), _), _) if typ == typeAlias.name => m
+        val grammar = {
+          val caseClasses = absMethods.collect {
+            case q"$_ def $tname[..$tparams](...$paramss): ${AppliedTypeTree(_, returnType)} = $expr" =>
+              q"case class ${TypeName(tname.toString.capitalize)}[..$tparams](...$paramss) extends ${sealedTrait.name}[..$returnType]"
+          }
+          q"object ${sealedTrait.name.toTermName} { ..$caseClasses }"
         }
-        val grammar = genGrammarADT(sealTrait, methods)
 
-        val liftedMethods = methods.map {
+        val liftedMethods = absMethods.map {
           case q"$_ def ${tname@TermName(name)}[..$tparams](...$paramss): ${tpt@AppliedTypeTree(_, innerType)} = $_" =>
             val tpe = tparams.collect {  case t:TypeDef => Ident(t.name) }
             val args = paramss.head.collect { case t:ValDef => Ident(t.name.toTermName) }
             val rhs =
               q"""
-                cats.free.Free.liftF[${sealTrait.name}, ..$innerType](
-                  ${sealTrait.name.toTermName}.${TermName(tname.toString.capitalize)}[..$tpe](..$args)
+                cats.free.Free.liftF[${sealedTrait.name}, ..$innerType](
+                  ${methodToCaseClassADT(sealedTrait, tname)}[..$tpe](..$args)
                 )
               """
 
@@ -85,10 +73,10 @@ object freeImpl extends LazyLogging {
             $mods trait $tpname[..$tparams] extends { ..$earlydefns } with ..$parents { $self =>
               import cats.free.Free
               $typeAlias
-              $sealTrait
+              $sealedTrait
               ..$grammar
               ..$liftedMethods
-              ..${extractMethodsWithImp(stats)}
+              ..$concreteMethods
             }
           """
 
@@ -100,12 +88,12 @@ object freeImpl extends LazyLogging {
 
               object all extends $tpname {
                 trait Interpreter[M[_]] {
-                  val interpreter = new (${sealTrait.name} ~> M) {
-                    def apply[A](fa: ${sealTrait.name}[A]): M[A] = fa match {
-                      case ..${methods.map {m =>
+                  val interpreter = new (${sealedTrait.name} ~> M) {
+                    def apply[A](fa: ${sealedTrait.name}[A]): M[A] = fa match {
+                      case ..${absMethods.map {m =>
                         val binds = m.vparamss.head.collect { case t:ValDef => Bind (t.name, Ident(termNames.WILDCARD))}
                         val args = m.vparamss.head.collect { case t:ValDef => Ident(t.name.toTermName) }
-                        cq"${sealTrait.name.toTermName}.${TermName(m.name.toString.capitalize)}(..$binds) => ${m.name}(..$args)"
+                        cq"${methodToCaseClassADT(sealedTrait, m.name)}(..$binds) => ${m.name}(..$args)"
                       }}
                     }
                   }
@@ -113,20 +101,18 @@ object freeImpl extends LazyLogging {
                   def run[A](op: ${typeAlias.name}[A])(implicit m: Monad[M], r: RecursiveTailRecM[M]): M[A] =
                    op.foldMap(interpreter)
 
-                  ..${methods.map(m => q"def ${m.name}[..${m.tparams}](...${m.vparamss}): ${replaceContainerType(m.tpt, TypeName("M"))}")}
+                  ..${absMethods.map(m => q"def ${m.name}[..${m.tparams}](...${m.vparamss}): ${replaceContainerType(m.tpt, TypeName("M"))}")}
                 }
               }
             }
            """
 
-         val out = q"..${List(genTrait, genCompanionObj)}"
-        logger.debug(showCode(out))
+        val gen = q"..${List(genTrait, genCompanionObj)}"
+        logger.debug(showCode(gen))
+        c.Expr[Any](gen)
 
-        out
       case other => c.abort(c.enclosingPosition, s"${showRaw(other)}")
     }
-
-    c.Expr[Any](result)
   }
 
 }
