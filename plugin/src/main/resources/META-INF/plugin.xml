@@ -5,7 +5,7 @@
     <vendor url="https://github.com/Thangiee/Freasy-Monad" email="thangiee12@gmail.com">Thang Le</vendor>
 
     <description>
-        <!--Enable proper Intellij highlighting for Metadroid macros.-->
+        Enable proper Intellij highlighting for Freasy-Monad macros.
     </description>
 
     <idea-version since-build="143.0"/>
