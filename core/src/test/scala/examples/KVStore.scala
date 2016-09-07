@@ -14,6 +14,7 @@ import scala.concurrent.{Await, Future}
 
   def put[T](key: String, value: T): KVStoreF[Unit]
   def get[T](key: String): KVStoreF[Option[T]]
+  def delete(key: String): KVStoreF[Unit]
 
   def update[T](key: String, f: T => T): KVStoreF[Unit] =
     for {
@@ -31,6 +32,7 @@ object Main extends App {
       _ <- update[Int]("wild-cats", _ + 12)
       _ <- put("tame-cats", 5)
       n <- get[Int]("wild-cats")
+      _ <- delete("tame-cats")
     } yield n
 
   val idInterpreter = new KVStore.Interp[Id] {
@@ -42,6 +44,10 @@ object Main extends App {
     def put[T](key: String, value: T): Id[Unit] = {
       println(s"put($key, $value)")
       kvs(key) = value
+    }
+    def delete(key: String): Id[Unit] = {
+      println(s"delete($key)")
+      kvs.remove(key)
     }
   }
   val resId: Id[Option[Int]] = idInterpreter.run(program)
@@ -58,6 +64,10 @@ object Main extends App {
     def put[T](key: String, value: T): Future[Unit] = Future {
       println(s"put($key, $value)")
       kvs(key) = value
+    }
+    def delete(key: String): Future[Unit] = Future {
+      println(s"delete($key)")
+      kvs.remove(key)
     }
   }
   val resFuture: Future[Option[Int]] = futureInterpreter.run(program)
