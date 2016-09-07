@@ -46,12 +46,21 @@ class freeInjector extends SyntheticMembersInjector {
               s"def $fName$params: M[${rt.canonicalText}]"
             }
 
-            val allBody =
+            val opsObj =
               s"""
-                |object $sealTraitName {
-                |  ${grammarADTClasses.mkString("\n")}
+                |object ops extends ${scTrait.name} {
+                |  object $sealTraitName {
+                |    ${grammarADTClasses.mkString("\n")}
+                |  }
                 |}
-                |trait ${scTrait.name}Interp[M[_]] {
+                |
+              """.stripMargin
+
+            val interpTrait =
+              s"""
+                |trait Interp[M[_]] {
+                |  import ${scTrait.getPath}.${scTrait.name}.ops._
+                |  import cats._
                 |  val interpreter = new ($sealTraitName ~> M) {
                 |    def apply[A](fa: $sealTraitName[A]): M[A] = fa match {
                 |      ${patternMatchCases.mkString("\n")}
@@ -62,17 +71,8 @@ class freeInjector extends SyntheticMembersInjector {
                 |}
               """.stripMargin
 
-            //Seq(
-            //  s"trait all extends ${scTrait.name} { $allBody }",
-            //  s"object all extends all
-            //)
+            Seq(opsObj, interpTrait)
 
-            // work around for `object all extends all` not showing in Intellij
-            val stubs = absFuncs.map(_.text + " = ???").mkString("\n")
-            Seq(
-              s"trait all extends ${scTrait.name} { $allBody; $stubs }",
-              s"object all extends ${scTrait.name} { $allBody }"
-            )
           case _ => Seq.empty
         }
       case _ => Seq.empty

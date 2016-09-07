@@ -69,6 +69,8 @@ object freeImpl {
             q"def $tname[..$tparams](...$paramss): $tpt = $rhs"
         }
 
+        val methodsToBeImpl = absMethods.map(m => q"def ${m.name}[..${m.tparams}](...${fixSI88771(m.vparamss)}): ${replaceContainerType(m.tpt, TypeName("M"))}")
+
         val genTrait =
           q"""
             $mods trait $tpname[..$tparams] extends { ..$earlydefns } with ..$parents { $self =>
@@ -86,30 +88,29 @@ object freeImpl {
               import cats._
               import scala.language.higherKinds
 
-              trait all extends $tpname {
-                trait ${TypeName(tpname.toString + "Interp")}[M[_]] {
-                  val interpreter = new (${sealedTrait.name} ~> M) {
-                    def apply[A](fa: ${sealedTrait.name}[A]): M[A] = fa match {
-                      case ..${absMethods.map {m =>
-                        val binds = m.vparamss.head.collect { case t:ValDef => Bind (t.name, Ident(termNames.WILDCARD))}
-                        val args = m.vparamss.head.collect { case t:ValDef => Ident(t.name.toTermName) }
-                        cq"${methodToCaseClassADT(sealedTrait, m.name)}(..$binds) => ${m.name}(..$args)"
-                      }}
-                    }
+              object ops extends $tpname
+
+              trait Interp[M[_]] {
+                import ops._
+                val interpreter = new (${sealedTrait.name} ~> M) {
+                  def apply[A](fa: ${sealedTrait.name}[A]): M[A] = fa match {
+                    case ..${absMethods.map {m =>
+                      val binds = m.vparamss.head.collect { case t:ValDef => Bind (t.name, Ident(termNames.WILDCARD))}
+                      val args = m.vparamss.head.collect { case t:ValDef => Ident(t.name.toTermName) }
+                      cq"${methodToCaseClassADT(sealedTrait, m.name)}(..$binds) => ${m.name}(..$args)"
+                    }}
                   }
-
-                  def run[A](op: ${typeAlias.name}[A])(implicit m: Monad[M], r: RecursiveTailRecM[M]): M[A] =
-                   op.foldMap(interpreter)
-
-                  ..${absMethods.map(m => q"def ${m.name}[..${m.tparams}](...${fixSI88771(m.vparamss)}): ${replaceContainerType(m.tpt, TypeName("M"))}")}
                 }
+
+                def run[A](op: ${typeAlias.name}[A])(implicit m: Monad[M], r: RecursiveTailRecM[M]): M[A] = op.foldMap(interpreter)
+
+                ..$methodsToBeImpl
               }
-              object all extends all
             }
            """
 
         val gen = q"..${List(genTrait, genCompanionObj)}"
-        println(showCode(gen))
+//        println(showCode(gen))
         c.Expr[Any](gen)
 
       case other => c.abort(c.enclosingPosition, s"${showRaw(other)}")

@@ -1,7 +1,8 @@
-package freasymonad
+package examples
 
 import cats.Id
 import cats.free.Free
+import freasymonad.free
 
 import scala.collection.mutable
 import scala.concurrent.duration.Duration
@@ -22,7 +23,7 @@ import scala.concurrent.{Await, Future}
 }
 
 object Main extends App {
-  import KVStore.all._
+  import KVStore.ops._
 
   def program: KVStoreF[Option[Int]] =
     for {
@@ -32,7 +33,7 @@ object Main extends App {
       n <- get[Int]("wild-cats")
     } yield n
 
-  val idInterpreter = new KVStoreInterp[Id] {
+  val idInterpreter = new KVStore.Interp[Id] {
     val kvs = mutable.Map.empty[String, Any]
     def get[T](key: String): Id[Option[T]] = {
       println(s"get($key)")
@@ -48,7 +49,7 @@ object Main extends App {
   import cats.implicits.catsStdInstancesForFuture
   import scala.concurrent.ExecutionContext.Implicits.global
 
-  val futureInterpreter = new KVStoreInterp[Future] {
+  val futureInterpreter = new KVStore.Interp[Future] {
     val kvs = mutable.Map.empty[String, Any]
     def get[T](key: String): Future[Option[T]] = Future {
       println(s"get($key)")
