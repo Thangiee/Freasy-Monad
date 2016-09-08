@@ -125,7 +125,7 @@ in the interpreter.
 
 Intellij users need to install the **Freasy Monad Plugin** to get proper highlighting & code completion.
 
-1) (Coming Soon) Search and Install the plugin from IntelliJ. (settings > plugins > browse repos > search for "Freasy Monad Plugin" > install and restart) 
+1) Search and Install the plugin from IntelliJ. (settings > plugins > browse repos > search for "Freasy Monad Plugin" > install and restart) 
 
   --**OR**--
 
