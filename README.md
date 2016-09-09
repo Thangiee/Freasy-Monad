@@ -71,23 +71,24 @@ Key-value store example from [cats website](http://typelevel.org/cats/tut/freemo
 
 During compile time, `KVStore` is expanded to something similar to:
 ```scala
-  trait KVStore {
-    type KVStoreF[A] = Free[GrammarADT, A]
+  trait KVStore {}
+  
+  object KVStore {
+    import cats._
+    import scala.language.higherKinds
     sealed trait GrammarADT[A]
     object GrammarADT {
       case class Put[T](key: String, value: T) extends GrammarADT[Unit]
       case class Get[T](key: String) extends GrammarADT[Option[T]]
       case class Delete(key: String) extends GrammarADT[Unit]
     }
-    def put[T](key: String, value: T): KVStoreF[Unit] = Free.liftF[GrammarADT, Unit](GrammarADT.Put[T](key, value))
-    def get[T](key: String): KVStoreF[Option[T]] = Free.liftF[GrammarADT, Option[T]](GrammarADT.Get[T](key))
-    def delete(key: String): KVStoreF[Unit] = Free.liftF[GrammarADT, Unit](GrammarADT.Delete(key))
-    def update[T](key: String, f: T => T): KVStoreF[Unit] = get[T](key).flatMap((vMaybe) => vMaybe.map((v) => put[T](key, f(v))).getOrElse(Free.pure(())).map((_) => ()))
-  }
-  object KVStore {
-    import cats._
-    import scala.language.higherKinds
-    object ops extends KVStore
+    object ops {
+      type KVStoreF[A] = Free[GrammarADT, A]
+      def put[T](key: String, value: T): KVStoreF[Unit] = Free.liftF[GrammarADT, Unit](GrammarADT.Put[T](key, value))
+      def get[T](key: String): KVStoreF[Option[T]] = Free.liftF[GrammarADT, Option[T]](GrammarADT.Get[T](key))
+      def delete(key: String): KVStoreF[Unit] = Free.liftF[GrammarADT, Unit](GrammarADT.Delete(key))
+      def update[T](key: String, f: T => T): KVStoreF[Unit] = get[T](key).flatMap((vMaybe) => vMaybe.map((v) => put[T](key, f(v))).getOrElse(Free.pure(())).map((_) => ()))
+    }
     trait Interp[M[_]] {
       import ops._
       val interpreter = new (GrammarADT ~> M) {

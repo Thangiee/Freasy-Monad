@@ -47,14 +47,6 @@ object freeImpl {
           case m@DefDef(_, _, _, _, AppliedTypeTree(Ident(typ), _), EmptyTree) if typ == typeAlias.name => m
         }
 
-        val grammar = {
-          val caseClasses = absMethods.collect {
-            case q"$_ def $tname[..$tparams](...$paramss): ${AppliedTypeTree(_, returnType)} = $expr" =>
-              q"case class ${TypeName(tname.toString.capitalize)}[..$tparams](...${fixSI88771(paramss)}) extends ${sealedTrait.name}[..$returnType]"
-          }
-          q"object ${sealedTrait.name.toTermName} { ..$caseClasses }"
-        }
-
         val liftedMethods = absMethods.map {
           case q"$_ def ${tname@TermName(name)}[..$tparams](...$paramss): ${tpt@AppliedTypeTree(_, innerType)} = $_" =>
             val tpe = tparams.collect {  case t:TypeDef => Ident(t.name) }
@@ -71,16 +63,13 @@ object freeImpl {
 
         val methodsToBeImpl = absMethods.map(m => q"def ${m.name}[..${m.tparams}](...${fixSI88771(m.vparamss)}): ${replaceContainerType(m.tpt, TypeName("M"))}")
 
-        val genTrait =
-          q"""
-            $mods trait $tpname[..$tparams] extends { ..$earlydefns } with ..$parents { $self =>
-              $typeAlias
-              $sealedTrait
-              ..$grammar
-              ..$liftedMethods
-              ..$concreteMethods
-            }
-          """
+        val genCaseClassesADT = {
+          val caseClasses = absMethods.collect {
+            case q"$_ def $tname[..$tparams](...$paramss): ${AppliedTypeTree(_, returnType)} = $expr" =>
+              q"case class ${TypeName(tname.toString.capitalize)}[..$tparams](...${fixSI88771(paramss)}) extends ${sealedTrait.name}[..$returnType]"
+          }
+          q"object ${sealedTrait.name.toTermName} { ..$caseClasses }"
+        }
 
         val genCompanionObj =
           q"""
@@ -88,7 +77,14 @@ object freeImpl {
               import cats._
               import scala.language.higherKinds
 
-              object ops extends $tpname
+              $sealedTrait
+              $genCaseClassesADT
+
+              object ops {
+                $typeAlias
+                ..$liftedMethods
+                ..$concreteMethods
+              }
 
               trait Interp[M[_]] {
                 import ops._
@@ -109,8 +105,8 @@ object freeImpl {
             }
            """
 
-        val gen = q"..${List(genTrait, genCompanionObj)}"
-//        println(showCode(gen))
+        val gen = q"..${List(q"trait $tpname", genCompanionObj)}"
+        println(showCode(gen))
         c.Expr[Any](gen)
 
       case other => c.abort(c.enclosingPosition, s"${showRaw(other)}")

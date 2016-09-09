@@ -1,7 +1,7 @@
 package com.thangiee.freasymonad.injector
 
 import org.jetbrains.plugins.scala.lang.psi.ScalaPsiUtil
-import org.jetbrains.plugins.scala.lang.psi.api.statements.ScFunction
+import org.jetbrains.plugins.scala.lang.psi.api.statements.{ScFunction, ScTypeAlias}
 import org.jetbrains.plugins.scala.lang.psi.api.toplevel.typedef._
 import org.jetbrains.plugins.scala.lang.psi.impl.toplevel.typedef._
 import org.jetbrains.plugins.scala.lang.psi.types.api.Any
@@ -18,10 +18,15 @@ class freeInjector extends SyntheticMembersInjector {
       case obj: ScObject =>
         ScalaPsiUtil.getCompanionModule(obj) match {
           case Some(scTrait: ScTraitImpl) if scTrait.findAnnotationNoAliases("freasymonad.free") != null =>
-            val typeAliasName: String = scTrait.aliases.headOption.map(_.name).getOrElse("???")
-            val sealTraitName: String = scTrait.getAllInnerClasses().headOption.map(_.getName).getOrElse("???")
+            val typeAlias: Option[ScTypeAlias] = scTrait.aliases.headOption
+            val typeAliasName: String = typeAlias.map(_.name).getOrElse("")
 
-            val absFuncs: Seq[ScFunction] = scTrait.functions.filter(_.isAbstractMember)
+            val sealedTrait = scTrait.getAllInnerClasses().collectFirst {
+              case clazz if clazz.hasModifierProperty("sealed") => clazz
+            }
+            val sealedTraitName: String = sealedTrait.map(_.getName).getOrElse("")
+
+            val (absFuncs, concreteFuncs): (Seq[ScFunction], Seq[ScFunction]) = scTrait.functions.partition(_.isAbstractMember)
 
             val funcsReturnType: Seq[ScType] = absFuncs.map(_.returnType.getOrAny)
             val funcsInnerReturnType: Seq[ScType] = funcsReturnType.collect {
@@ -35,7 +40,7 @@ class freeInjector extends SyntheticMembersInjector {
             val funcsArgs: Seq[String] = absFuncs.map(_.parameters.map(_.name).mkString(", "))
 
             val grammarADTClasses = (funcsNameWithTp zip funcsParams zip funcsInnerReturnType).map { case ((fName, params), rt) =>
-              s"case class ${fName.capitalize}$params extends $sealTraitName[${rt.canonicalText}]"
+              s"case class ${fName.capitalize}$params extends $sealedTraitName[${rt.canonicalText}]"
             }
 
             val patternMatchCases = (funcsName zip funcsTypeParamsTxt zip funcsArgs).map { case ((fName, tp), args) =>
@@ -46,14 +51,22 @@ class freeInjector extends SyntheticMembersInjector {
               s"def $fName$params: M[${rt.canonicalText}]"
             }
 
+            val sealedTraitSig = sealedTrait.map(_.getText).getOrElse("")
+
+            val sealedTraitADT =
+              s"""
+                 |object $sealedTraitName {
+                 |  ${grammarADTClasses.mkString("\n")}
+                 |}
+               """.stripMargin
+
             val opsObj =
               s"""
-                |object ops extends ${scTrait.name} {
-                |  object $sealTraitName {
-                |    ${grammarADTClasses.mkString("\n")}
-                |  }
+                |object ops {
+                |  ${typeAlias.map(_.text).getOrElse("")}
+                |  ${absFuncs.map(_.text).mkString("\n")}
+                |  ${concreteFuncs.map(_.text).mkString("\n")})
                 |}
-                |
               """.stripMargin
 
             val interpTrait =
@@ -61,8 +74,8 @@ class freeInjector extends SyntheticMembersInjector {
                 |trait Interp[M[_]] {
                 |  import ${scTrait.getPath}.${scTrait.name}.ops._
                 |  import cats._
-                |  val interpreter = new ($sealTraitName ~> M) {
-                |    def apply[A](fa: $sealTraitName[A]): M[A] = fa match {
+                |  val interpreter = new ($sealedTraitName ~> M) {
+                |    def apply[A](fa: $sealedTraitName[A]): M[A] = fa match {
                 |      ${patternMatchCases.mkString("\n")}
                 |    }
                 |  }
@@ -71,7 +84,7 @@ class freeInjector extends SyntheticMembersInjector {
                 |}
               """.stripMargin
 
-            Seq(opsObj, interpTrait)
+            Seq(sealedTraitSig, sealedTraitADT, opsObj, interpTrait)
 
           case _ => Seq.empty
         }
