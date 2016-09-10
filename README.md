@@ -84,10 +84,29 @@ During compile time, `KVStore` is expanded to something similar to:
     }
     object ops {
       type KVStoreF[A] = Free[GrammarADT, A]
-      def put[T](key: String, value: T): KVStoreF[Unit] = Free.liftF[GrammarADT, Unit](GrammarADT.Put[T](key, value))
-      def get[T](key: String): KVStoreF[Option[T]] = Free.liftF[GrammarADT, Option[T]](GrammarADT.Get[T](key))
-      def delete(key: String): KVStoreF[Unit] = Free.liftF[GrammarADT, Unit](GrammarADT.Delete(key))
+      def put[T](key: String, value: T): KVStoreF[Unit] = injectOps.put[GrammarADT, T](key, value)
+      def get[T](key: String): KVStoreF[Option[T]] = injectOps.get[GrammarADT, T](key)
+      def delete(key: String): KVStoreF[Unit] = injectOps.delete[GrammarADT](key)
       def update[T](key: String, f: T => T): KVStoreF[Unit] = get[T](key).flatMap((vMaybe) => vMaybe.map((v) => put[T](key, f(v))).getOrElse(Free.pure(())).map((_) => ()))
+    }
+    object injectOps {
+      def put[F[_], T](key: String, value: T)(implicit I: free.Inject[GrammarADT, F]): free.Free[F, Unit] = free.Free.inject[GrammarADT, F](GrammarADT.Put(key, value));
+      def get[F[_], T](key: String)(implicit I: free.Inject[GrammarADT, F]): free.Free[F, Option[T]] = free.Free.inject[GrammarADT, F](GrammarADT.Get(key));
+      def delete[F[_]](key: String)(implicit I: free.Inject[GrammarADT, F]): free.Free[F, Unit] = free.Free.inject[GrammarADT, F](GrammarADT.Delete(key));
+      def update[F[_], T](key: String, f: T => T)(implicit I: free.Inject[GrammarADT, F]): free.Free[F, Unit] = ops.update(key, f).compile({
+        new arrow.FunctionK[GrammarADT, F] {
+          def apply[A](fa: GrammarADT[A]): F[A] = I.inj(fa)
+        }
+      })
+    }
+    class Inject[F[_]](implicit I: free.Inject[GrammarADT, F]) {
+      def put[T](key: String, value: T): free.Free[F, Unit] = injectOps.put[F, T](key, value);
+      def get[T](key: String): free.Free[F, Option[T]] = injectOps.get[F, T](key);
+      def delete(key: String): free.Free[F, Unit] = injectOps.delete[F](key);
+      def update[T](key: String, f: T => T): free.Free[F, Unit] = injectOps.update[F, T](key, f)
+    }
+    object Inject {
+      implicit def injectOps[F[_]](implicit I: free.Inject[GrammarADT, F]): Inject[F] = new Inject[F]()
     }
     trait Interp[M[_]] {
       import ops._

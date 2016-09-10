@@ -19,7 +19,6 @@ lazy val core = project
       "-Yno-adapted-args",
       "-Ywarn-dead-code",
       "-Ywarn-numeric-widen",
-      "-Ywarn-value-discard",
       "-Ywarn-unused",
       "-Ywarn-unused-import",
       "-unchecked"

@@ -30,9 +30,15 @@ object freeImpl {
     def methodToCaseClassADT(sealedTrait: ClassDef, methodName: Name) =
       q"${sealedTrait.name.toTermName}.${TermName(methodName.toString.capitalize)}"
 
-    trees.headOption match {
-      case Some(q"$mods trait ${tpname:TypeName}[..$tparams] extends { ..$earlydefns } with ..$parents { $self => ..$stats }") =>
+    type Paramss = List[List[ValDef]]
+    def paramssToArgs(paramss: Paramss): List[TermName] =
+      paramss.headOption.map(_.collect { case t@ValDef(mods, name, _, _) if !mods.hasFlag(Flag.IMPLICIT) => name }).getOrElse(Nil)
 
+    // remove () if no args
+    def methodCallFmt(method: c.universe.Tree, args: Seq[TermName]): c.universe.Tree = if (args.isEmpty) method else q"$method(..$args)"
+
+    trees.headOption match {
+      case Some(q"$_ trait ${tpname:TypeName}[..$tparams] extends { ..$earlydefns } with ..$parents { $self => ..$stats }") =>
         val (typeAlias: TypeDef, freeSType) =
           stats.collectFirst { case typeDef @ q"type $_[..$_] = Free[${Ident(s)}, $_]" => (typeDef, s) }
             .getOrElse(abort("Require a type alias for Free[S, A]"))
@@ -41,24 +47,64 @@ object freeImpl {
           case cd @ q"sealed trait $name[..$_]" if name == freeSType => cd.asInstanceOf[ClassDef]
         }.getOrElse(abort(s"Require seal trait $freeSType[A]"))
 
+        // create param: (implicit I: free.Inject[?, F])
+        val implicitInject = List(ValDef(Modifiers(Flag.IMPLICIT | Flag.PARAM), TermName("I"), tq"free.Inject[${sealedTrait.name.toTypeName}, F]", EmptyTree))
+        val F = q"type F[_]" // higherKind F[_]
+
         val concreteMethods = stats.collect { case m@DefDef(_, _, _, _, _, rhs) if rhs.nonEmpty => m }
+
+        val concreteInjectOps = concreteMethods.collect {
+          case q"$_ def $tname[..$tparams](...${paramss:Paramss}): ${tpt@AppliedTypeTree(Ident(outerType), innerType)} = $_" if outerType == typeAlias.name =>
+            val args = paramssToArgs(paramss)
+            val rhs =
+              q"""
+                ${methodCallFmt(q"ops.$tname", args)}.compile(new arrow.FunctionK[${sealedTrait.name}, F] {
+                  def apply[A](fa: ${sealedTrait.name}[A]): F[A] = I.inj(fa)
+                })
+              """
+
+            q"def $tname[..${F +: tparams}](...${paramss :+ implicitInject}): free.Free[F, ..$innerType] = $rhs"
+        }
 
         val absMethods: Seq[c.universe.DefDef] = stats.collect {
           case m@DefDef(_, _, _, _, AppliedTypeTree(Ident(typ), _), EmptyTree) if typ == typeAlias.name => m
         }
 
-        val liftedMethods = absMethods.map {
-          case q"$_ def ${tname@TermName(name)}[..$tparams](...$paramss): ${tpt@AppliedTypeTree(_, innerType)} = $_" =>
-            val tpe = tparams.collect {  case t:TypeDef => Ident(t.name) }
-            val args = paramss.head.collect { case t:ValDef => Ident(t.name.toTermName) }
-            val rhs =
-              q"""
-                cats.free.Free.liftF[${sealedTrait.name}, ..$innerType](
-                  ${methodToCaseClassADT(sealedTrait, tname)}[..$tpe](..$args)
-                )
-              """
+        val (liftedOps, liftedInjectOps) = absMethods.map {
+          case q"$_ def ${tname:TermName}[..${tparams:List[TypeDef]}](...${paramss: Paramss}): ${tpt@AppliedTypeTree(_, innerType)} = $_" =>
+            val args = paramssToArgs(paramss)
 
-            q"def $tname[..$tparams](...$paramss): $tpt = $rhs"
+            val op = {
+              val rhs = methodCallFmt(q"injectOps.$tname[..${sealedTrait.name +: tparams.map(_.name)}]", args)
+              q"def $tname[..$tparams](...$paramss): $tpt = $rhs"
+            }
+
+            val injectOp = {
+              val rhs = q"free.Free.inject[${sealedTrait.name}, F](${methodToCaseClassADT(sealedTrait, tname)}(..$args))"
+              val params = (if (paramss.isEmpty) List.empty else paramss) :+ implicitInject
+              q"def $tname[..${F +: tparams}](...$params): free.Free[F, ..$innerType] = $rhs"
+            }
+
+            (op, injectOp)
+        }.unzip
+
+        val injectClass = {
+          val methods = (liftedInjectOps ++ concreteInjectOps).map {
+            case q"$_ def $tname[..${tparams:List[TypeDef]}](...${paramss:Paramss}): $tpt = $_" =>
+              val rhs = methodCallFmt(q"injectOps.$tname[..${tparams.map(_.name)}]", paramssToArgs(paramss))
+              //drop the F[_] from tparams and drop implicit param from paramss
+              q"def $tname[..${tparams.tail}](...${paramss.dropRight(1)}): $tpt = $rhs"
+          }
+
+          q"""
+            class Inject[F[_]](implicit I: free.Inject[${sealedTrait.name}, F]) {
+              ..$methods
+            }
+
+            object Inject {
+              implicit def injectOps[F[_]](implicit I: free.Inject[${sealedTrait.name}, F]): Inject[F] = new Inject[F]
+            }
+           """
         }
 
         val methodsToBeImpl = absMethods.map(m => q"def ${m.name}[..${m.tparams}](...${fixSI88771(m.vparamss)}): ${replaceContainerType(m.tpt, TypeName("M"))}")
@@ -76,37 +122,38 @@ object freeImpl {
             object ${tpname.toTermName} {
               import cats._
               import scala.language.higherKinds
-
               $sealedTrait
               $genCaseClassesADT
-
               object ops {
                 $typeAlias
-                ..$liftedMethods
+                ..$liftedOps
                 ..$concreteMethods
               }
-
+              object injectOps {
+                ..$liftedInjectOps
+                ..$concreteInjectOps
+              }
+              ..$injectClass
               trait Interp[M[_]] {
                 import ops._
                 val interpreter = new (${sealedTrait.name} ~> M) {
                   def apply[A](fa: ${sealedTrait.name}[A]): M[A] = fa match {
                     case ..${absMethods.map {m =>
-                      val binds = m.vparamss.head.collect { case t:ValDef => Bind (t.name, Ident(termNames.WILDCARD))}
-                      val args = m.vparamss.head.collect { case t:ValDef => Ident(t.name.toTermName) }
-                      cq"${methodToCaseClassADT(sealedTrait, m.name)}(..$binds) => ${m.name}(..$args)"
+                      val binds = m.vparamss.headOption.map(_.collect { case t:ValDef => Bind (t.name, Ident(termNames.WILDCARD))}).getOrElse(Nil)
+                      val args = m.vparamss.headOption.map(_.collect { case t:ValDef => Ident(t.name.toTermName) }).getOrElse(Nil)
+                      val rhs = if (args.isEmpty) q"${m.name}" else q"${m.name}(..$args)"
+                      cq"${methodToCaseClassADT(sealedTrait, m.name)}(..$binds) => $rhs"
                     }}
                   }
                 }
-
                 def run[A](op: ${typeAlias.name}[A])(implicit m: Monad[M], r: RecursiveTailRecM[M]): M[A] = op.foldMap(interpreter)
-
                 ..$methodsToBeImpl
               }
             }
            """
 
         val gen = q"..${List(q"trait $tpname", genCompanionObj)}"
-        println(showCode(gen))
+//        println(showCode(gen))
         c.Expr[Any](gen)
 
       case other => c.abort(c.enclosingPosition, s"${showRaw(other)}")
