@@ -20,7 +20,6 @@ proguard/
 captures/
 *.iml
 */.idea
-.idea/*
 idea
 *.jks
 .idea/tasks.xml
@@ -58,3 +57,10 @@ project/boot/
 project/plugins/project/
 .scala_dependencies
 .worksheet
+/.idea/scala_compiler.xml
+/.idea/sbt.xml
+/.idea/deployment.xml
+/.idea/misc.xml
+/.idea/modules.xml
+/.idea/encodings.xml
+/.idea/copyright/profiles_settings.xml

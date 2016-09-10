@@ -1,0 +1,6 @@
+<component name="ArtifactManager">
+    <artifact name="libraries">
+        <output-path>$PROJECT_DIR$/target/artifacts/libraries</output-path>
+        <root id="root" />
+    </artifact>
+</component>

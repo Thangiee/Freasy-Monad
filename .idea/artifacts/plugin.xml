@@ -1,0 +1,13 @@
+<component name="ArtifactManager">
+    <artifact build-on-make="true" name="plugin">
+        <output-path>$PROJECT_DIR$/target/artifacts/plugin</output-path>
+        <root id="root">
+            <element id="directory" name="lib">
+                <element id="archive" name="idea-plugin.jar">
+                    <element id="artifact" artifact-name="libraries" />
+                    <element id="module-output" name="freasy-monad" />
+                </element>
+            </element>
+        </root>
+    </artifact>
+</component>
