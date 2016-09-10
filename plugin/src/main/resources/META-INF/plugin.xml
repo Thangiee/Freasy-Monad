@@ -1,7 +1,7 @@
 <idea-plugin version="2">
     <id>com.thangiee.freasy-monad</id>
     <name>Freasy Monad Plugin</name>
-    <version>0.1.0</version>
+    <version>0.2.0</version>
     <vendor url="https://github.com/Thangiee/Freasy-Monad" email="thangiee12@gmail.com">Thang Le</vendor>
 
     <description>
@@ -11,6 +11,7 @@
     <idea-version since-build="143.0"/>
 
     <change-notes>
+        *Update for library version 0.2.0
     </change-notes>
 
     <depends>org.intellij.scala</depends>

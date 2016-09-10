@@ -9,7 +9,7 @@ lazy val core = project
   .settings(commonSettings)
   .settings(
     name := "freasy-monad",
-    version := "0.1.0",
+    version := "0.2.0",
     scalacOptions ++= Seq(
       "-feature",
       "-encoding", "UTF-8",
@@ -36,7 +36,7 @@ lazy val core = project
     bintrayVcsUrl := Some("https://github.com/Thangiee/Freasy-Monad")
   )
 
-val pluginVer = "0.1.0"
+val pluginVer = "0.2.0"
 val pluginName = "freasy-monad-plugin"
 lazy val plugin: Project = project
   .enablePlugins(SbtIdeaPlugin)
