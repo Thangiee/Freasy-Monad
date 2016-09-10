@@ -41,7 +41,11 @@ class freeInjector extends SyntheticMembersInjector {
             val typeAlias: Option[ScTypeAlias] = scTrait.aliases.headOption
             val typeAliasName: String = typeAlias.map(_.name).getOrElse("")
 
-            val absPath: String = s"${scTrait.getPath}.${scTrait.name}" // absolute path to trait companion obj
+            // absolute path to trait companion obj
+            val absPath: String = {
+              val path = scTrait.getPath
+              if (path.isEmpty) scTrait.name else s"${scTrait.getPath}.${scTrait.name}"
+            }
 
             val sealedTrait: Option[PsiClass] = scTrait.getAllInnerClasses().collectFirst {
               case clazz if clazz.hasModifierProperty("sealed") => clazz
