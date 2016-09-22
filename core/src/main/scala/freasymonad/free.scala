@@ -52,6 +52,24 @@ object freeImpl {
           case cd @ q"sealed trait $name[..$_]" if name == freeSType => cd.asInstanceOf[ClassDef]
         }.getOrElse(abort(s"Require seal trait $freeSType[A]"))
 
+        def isReturnTypeOfTypeAlias(rt: Tree): Boolean = rt match {
+          case AppliedTypeTree(Ident(name), _)  => name == typeAlias.name
+          case _ => false
+        }
+
+        // check some constraints that will result in a compiler error
+        stats.foreach {
+          case v @ ValDef(_, _, rt: TypeTree, _)       => c.abort(v.pos, s"Define the return type for:") // requires explicit return type
+          case d @ DefDef(_, _, _, _, rt: TypeTree, _) => c.abort(d.pos, s"Define the return type for:") // requires explicit return type
+          case v @ ValDef(mods, _, rt, EmptyTree) if mods.hasFlag(Flag.MUTABLE) =>
+            c.abort(v.pos, "Cannot have abstract var, consider using abstract val/def or non-abstract var instead.")
+          case v @ ValDef(_, _, rt, EmptyTree)  =>
+            if (!isReturnTypeOfTypeAlias(rt)) c.abort(v.pos, s"Abstract val needs to have return type ${typeAlias.name}[...], otherwise, make it non-abstract.")
+          case d @ DefDef(_, _, _, _, rt, EmptyTree) =>
+            if (!isReturnTypeOfTypeAlias(rt)) c.abort(d.pos, s"Abstract def needs to have return type ${typeAlias.name}[...], otherwise, make it non-abstract.")
+          case _ => // no issue
+        }
+
         // create param: (implicit I: free.Inject[?, F])
         val implicitInject = List(ValDef(Modifiers(Flag.IMPLICIT | Flag.PARAM), TermName("I"), tq"free.Inject[${sealedTrait.name.toTypeName}, F]", EmptyTree))
         val F = q"type F[_]" // higherKind F[_]

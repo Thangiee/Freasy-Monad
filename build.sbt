@@ -25,7 +25,8 @@ lazy val core = project
     ),
     libraryDependencies ++= Seq(
       "org.typelevel" %% "cats" % "0.7.2" % "provided",
-      "org.scala-lang" % "scala-reflect" % "2.11.8"
+      "org.scala-lang" % "scala-reflect" % "2.11.8",
+      "org.scalatest" %% "scalatest" % "3.0.0" % "test"
     ),
     addCompilerPlugin("org.scalamacros" % "paradise" % "2.1.0" cross CrossVersion.full)
   )
