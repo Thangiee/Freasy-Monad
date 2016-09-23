@@ -52,6 +52,10 @@ object freeImpl {
           case cd @ q"sealed trait $name[..$_]" if name == freeSType => cd.asInstanceOf[ClassDef]
         }.getOrElse(abort(s"Require seal trait $freeSType[A]"))
 
+        // create param: (implicit I: free.Inject[?, F])
+        val implicitInject = List(ValDef(Modifiers(Flag.IMPLICIT | Flag.PARAM), TermName("I"), tq"free.Inject[${sealedTrait.name.toTypeName}, F]", EmptyTree))
+        val F = q"type F[_]" // higherKind F[_]
+
         def isReturnTypeOfTypeAlias(rt: Tree): Boolean = rt match {
           case AppliedTypeTree(Ident(name), _)  => name == typeAlias.name
           case _ => false
@@ -70,31 +74,12 @@ object freeImpl {
           case _ => // no issue
         }
 
-        // create param: (implicit I: free.Inject[?, F])
-        val implicitInject = List(ValDef(Modifiers(Flag.IMPLICIT | Flag.PARAM), TermName("I"), tq"free.Inject[${sealedTrait.name.toTypeName}, F]", EmptyTree))
-        val F = q"type F[_]" // higherKind F[_]
-
-        val concreteMethods = stats.collect { case m@DefDef(_, _, _, _, _, rhs) if rhs.nonEmpty => m }
-
-        val concreteInjectOps = concreteMethods.collect {
-          case q"$_ def $tname[..$tparams](...${paramss:Paramss}): ${tpt@AppliedTypeTree(Ident(outerType), innerType)} = $_" if outerType == typeAlias.name =>
-            val args = paramssToArgs(paramss)
-            val rhs =
-              q"""
-                ${methodCallFmt(q"ops.$tname", args)}.compile(new arrow.FunctionK[${sealedTrait.name}, F] {
-                  def apply[A](fa: ${sealedTrait.name}[A]): F[A] = I.inj(fa)
-                })
-              """
-
-            q"def $tname[..${F +: tparams}](...${paramss :+ implicitInject}): free.Free[F, ..$innerType] = $rhs"
-        }
-
-        val absMethods: Seq[c.universe.DefDef] = stats.collect {
+        val absMethods: Seq[DefDef] = stats.collect {
           case m@DefDef(_, _, _, _, AppliedTypeTree(Ident(typ), _), EmptyTree) if typ == typeAlias.name => m
         }
 
-        val (liftedOps, liftedInjectOps) = absMethods.map {
-          case q"${mods:Modifiers} def ${tname:TermName}[..${tparams:List[TypeDef]}](...${paramss: Paramss}): ${tpt@AppliedTypeTree(_, innerType)} = $_" =>
+        val (liftedOps:Seq[DefDef], liftedInjectOps:Seq[DefDef]) = absMethods.map {
+          case q"$_ def ${tname:TermName}[..${tparams:List[TypeDef]}](...${paramss: Paramss}): ${tpt@AppliedTypeTree(_, innerType)} = $_" =>
             val op = {
               val args = paramssToArgs(paramss)
               val rhs = methodCallFmt(q"injectOps.$tname[..${sealedTrait.name +: tparams.map(_.name)}]", args)
@@ -110,6 +95,39 @@ object freeImpl {
 
             (op, injectOp)
         }.unzip
+
+        val concreteMethods: Seq[DefDef] = stats.collect { case m@DefDef(_, _, _, _, _, rhs) if rhs.nonEmpty => m }
+
+        val (concreteOps, concreteInjectOps, concreteNonOps) = {
+          val (ops, nonOps) = concreteMethods.partition {
+            case DefDef(_, _, _, _, AppliedTypeTree(Ident(outerType), innerType), _) => outerType == typeAlias.name
+            case _ => false
+          }
+
+          // append type param F to all calls to methods that will be in injectOps Obj (to satisfy F[_]).
+          val transformer = new Transformer {
+            val injectOps = liftedInjectOps ++ ops
+            override def transform(tree: c.universe.Tree): c.universe.Tree = tree match {
+              case Apply(TypeApply(Ident(name:TermName), tp), args) if injectOps.exists(_.name == name) =>
+                super.transform(q"$name[..${tq"F" +: tp}](..$args)")
+              case _ =>
+                super.transform(tree)
+            }
+          }
+
+          val injectOps = ops.map {
+            case DefDef(mods, tname, tp, paramss, AppliedTypeTree(_, innerType), rhs) =>
+              q"def $tname[..${F +: tp}](...${paramss :+ implicitInject}): free.Free[F, ..$innerType] = ${transformer.transform(rhs)}"
+          }
+
+          val ops2 = ops.map {
+            case DefDef(mods, name, tparams, paramss, rt, _) =>
+              val rhs = methodCallFmt(q"injectOps.$name[..${sealedTrait.name +: tparams.map(_.name)}]", paramssToArgs(paramss))
+              DefDef(Modifiers(), name, tparams, paramss, rt, rhs)
+          }
+
+          (ops2, injectOps, nonOps)
+        }
 
         val injectClass = {
           val methods = (liftedInjectOps ++ concreteInjectOps).map {
@@ -150,7 +168,8 @@ object freeImpl {
               object ops {
                 $typeAlias
                 ..$liftedOps
-                ..$concreteMethods
+                ..$concreteOps
+                ..$concreteNonOps
               }
               object injectOps {
                 ..$liftedInjectOps
