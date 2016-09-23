@@ -36,6 +36,17 @@ class CompileFailSpec extends FunSuite with Matchers {
     """.stripMargin shouldNot compile
   }
 
+  test("Compile fail with concrete var") {
+    """
+      |import cats.free._
+      |@freasymonad.free trait KVStore {
+      |  type KVStoreF[A] = Free[GrammarADT, A]
+      |  sealed trait GrammarADT[A]
+      |  var foo: Int = 1
+      |}
+    """.stripMargin shouldNot compile
+  }
+
   test("Compile fail when abstract val have wrong return type (not KVStoreF in this case)") {
     """
       |import cats.free._

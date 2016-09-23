@@ -65,8 +65,7 @@ object freeImpl {
         stats.foreach {
           case v @ ValDef(_, _, rt: TypeTree, _)       => c.abort(v.pos, s"Define the return type for:") // requires explicit return type
           case d @ DefDef(_, _, _, _, rt: TypeTree, _) => c.abort(d.pos, s"Define the return type for:") // requires explicit return type
-          case v @ ValDef(mods, _, rt, EmptyTree) if mods.hasFlag(Flag.MUTABLE) =>
-            c.abort(v.pos, "Cannot have abstract var, consider using abstract val/def or non-abstract var instead.")
+          case v @ ValDef(mods, _, rt, _) if mods.hasFlag(Flag.MUTABLE) => c.abort(v.pos, s"var is not allow in @free trait $tpname")
           case v @ ValDef(_, _, rt, EmptyTree)  =>
             if (!isReturnTypeOfTypeAlias(rt)) c.abort(v.pos, s"Abstract val needs to have return type ${typeAlias.name}[...], otherwise, make it non-abstract.")
           case d @ DefDef(_, _, _, _, rt, EmptyTree) =>
