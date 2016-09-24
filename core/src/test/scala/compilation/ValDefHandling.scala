@@ -10,7 +10,7 @@ object ValDefHandling extends App {
     type KVStoreF[A] = Free[GrammarADT, A]
     sealed trait GrammarADT[A]
 
-    val someVal: String = "a"
+    private[ValDefHandling] val someVal: String = "a"
     def someDef(a: Int): Option[Int] = Some(a + 1)
 
     def get[T](key: String): KVStoreF[Option[T]]
