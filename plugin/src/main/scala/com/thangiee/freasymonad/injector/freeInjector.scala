@@ -3,9 +3,10 @@ package com.thangiee.freasymonad.injector
 import com.intellij.psi.PsiClass
 import com.thangiee.freasymonad.injector.freeInjector._
 import org.jetbrains.plugins.scala.lang.psi.ScalaPsiUtil
-import org.jetbrains.plugins.scala.lang.psi.api.statements.{ScFunction, ScTypeAlias}
+import org.jetbrains.plugins.scala.lang.psi.api.statements._
 import org.jetbrains.plugins.scala.lang.psi.api.toplevel.typedef._
 import org.jetbrains.plugins.scala.lang.psi.impl.toplevel.typedef._
+import org.jetbrains.plugins.scala.lang.psi.types.result.TypingContext
 import org.jetbrains.plugins.scala.lang.psi.types.{ScParameterizedType, ScType}
 
 object freeInjector {
@@ -14,16 +15,23 @@ object freeInjector {
     val paramsTxt    : String = value.paramClauses.text
     val argsText     : String = s"(${value.parameters.map(_.name).mkString(", ")})"
 
-    val returnTypeOrAny : ScType      = value.returnType.getOrAny
-    val returnInnerTypes: Seq[ScType] = returnTypeOrAny match {
-      case tpe: ScParameterizedType => tpe.typeArguments
-      case _ => Seq.empty
-    }
-    val returnInnerTypesTxt    : Seq[String] = returnInnerTypes.map(_.canonicalText)
-    val firstReturnInnerTypeTxt: String      = returnInnerTypesTxt.headOption.getOrElse("Any")
+    val returnTypeOrAny: ScType      = value.returnType.getOrAny
 
     def appendTypeParam(tp: String): String =
       if (typeParamsTxt.isEmpty) s"[$tp]" else s"[$tp, ${typeParamsTxt.tail.dropRight(1)}]"
+  }
+
+  implicit class RichScVal(scValue: ScValue) {
+    val returnTypeOrAny: ScType = scValue.getType(TypingContext.empty).getOrAny
+  }
+
+  implicit class RichScType(scType: ScType) {
+    val innerTypes : Seq[ScType] = scType match {
+      case tpe: ScParameterizedType => tpe.typeArguments
+      case _ => Seq.empty
+    }
+    val innerTypesTxt    : Seq[String] = innerTypes.map(_.canonicalText)
+    val firstInnerTypeTxt: String      = innerTypesTxt.headOption.getOrElse("Any")
   }
 }
 
@@ -51,13 +59,24 @@ class freeInjector extends SyntheticMembersInjector {
               case clazz if clazz.hasModifierProperty("sealed") => clazz
             }
             val sealedTraitName: String = sealedTrait.map(_.getName).getOrElse("")
-            val funcs: Seq[ScFunction] = scTrait.functions.filter(_.returnTypeOrAny.canonicalText.contains(typeAliasName))
+
+            val (opsFunc, nonOpsFunc) = scTrait.functions.partition(_.returnTypeOrAny.canonicalText.split('[').head.contains(typeAliasName))
+
+            val (opsVal, nonOpsVal) =
+              scTrait.allVals.map(_._1)
+                .map(ScalaPsiUtil.nameContext)
+                .collect {
+                  case v: ScPatternDefinition => v // concrete val
+                  case v: ScValueDeclaration  => v // abstract val
+                }
+                .partition(_.returnTypeOrAny.canonicalText.split('[').head.contains(typeAliasName))
+
             val implicitInjectParam: String = s"(implicit I: cats.free.Inject[$absPath.$sealedTraitName, F])"
-            def Free(fn: ScFunction): String = s"cats.free.Free[F, ${fn.firstReturnInnerTypeTxt}]"
+            def Free(A: ScType): String = s"cats.free.Free[F, ${A.firstInnerTypeTxt}]"
 
             val sealedTraitADT = {
-              val caseClasses = funcs.map { fn =>
-                s"case class ${fn.name.capitalize}${fn.typeParamsTxt}${fn.paramsTxt} extends $sealedTraitName[${fn.firstReturnInnerTypeTxt}]"
+              val caseClasses = opsFunc.map { fn =>
+                s"case class ${fn.name.capitalize}${fn.typeParamsTxt}${fn.paramsTxt} extends $sealedTraitName[${fn.returnTypeOrAny.firstInnerTypeTxt}]"
               }
               s"object $sealedTraitName { ${caseClasses.mkString("\n")} }"
             }
@@ -66,23 +85,45 @@ class freeInjector extends SyntheticMembersInjector {
               s"""
                 |object ops {
                 |  ${typeAlias.map(_.text).getOrElse("")}
-                |  ${funcs.map(_.text).mkString("\n")}
+                |  ${nonOpsVal.map(_.text).mkString("\n")}
+                |  ${opsVal.map(_.text).mkString("\n")}
+                |  ${nonOpsFunc.map(_.text).mkString("\n")}
+                |  ${opsFunc.map(_.text).mkString("\n")}
                 |}
               """.stripMargin
 
             val injectOpsObj = {
-              val ops = funcs.map { fn =>
-                s"def ${fn.name}${fn.appendTypeParam("F[_]")}${fn.paramsTxt}$implicitInjectParam: ${Free(fn)}) = ???"
+              val ops = opsFunc.map { fn =>
+                s"def ${fn.name}${fn.appendTypeParam("F[_]")}${fn.paramsTxt}$implicitInjectParam: ${Free(fn.returnTypeOrAny)}) = ???"
               }
-              s"object injectOps { ${ops.mkString("\n")} }"
+              val opsValToDef = opsVal.map { v =>
+                s"def ${v.declaredNames.mkString("")}[F[_]]: ${Free(v.returnTypeOrAny)} = ???"
+              }
+              s"""
+                 |object injectOps {
+                 |  ${nonOpsVal.map(_.text).mkString("\n")}
+                 |  ${nonOpsFunc.map(_.text).mkString("\n")}
+                 |  ${ops.mkString("\n")}
+                 |  ${opsValToDef.mkString("\n")}
+                 |}
+              """.stripMargin
             }
 
             val injectClass = {
-              val ops = funcs.map { fn =>
-                s"def ${fn.name}${fn.typeParamsTxt}${fn.paramsTxt}: ${Free(fn)} = ???"
+              val ops = opsFunc.map { fn =>
+                s"def ${fn.name}${fn.typeParamsTxt}${fn.paramsTxt}: ${Free(fn.returnTypeOrAny)} = ???"
               }
-
-              s"class Inject[F[_]]$implicitInjectParam { ${ops.mkString("\n")} }"
+              val opsVal2 = opsVal.map { v =>
+                s"val ${v.declaredNames.mkString("")}: ${Free(v.returnTypeOrAny)} = ???"
+              }
+              s"""
+                 |class Inject[F[_]]$implicitInjectParam {
+                 |  ${nonOpsVal.map(_.text).mkString("\n")}
+                 |  ${opsVal2.mkString("\n")}
+                 |  ${nonOpsFunc.map(_.text).mkString("\n")}
+                 |  ${ops.mkString("\n")}
+                 |}
+              """.stripMargin
             }
 
             val injectClassCompanion = {
@@ -94,10 +135,15 @@ class freeInjector extends SyntheticMembersInjector {
             }
 
             val interpTrait = {
-              val absFuncs = funcs.filter(_.isAbstractMember)
-              val funcsToBeImpl = absFuncs.map { fn =>
-                s"def ${fn.name}${fn.typeParamsTxt}${fn.paramsTxt}: M[${fn.firstReturnInnerTypeTxt}]"
-              }
+              val funcsToBeImpl: Seq[String] =
+                opsFunc.filter(_.isAbstractMember)
+                  .map { fn =>
+                    s"def ${fn.name}${fn.typeParamsTxt}${fn.paramsTxt}: M[${fn.returnTypeOrAny.firstInnerTypeTxt}]"
+                  } ++
+                opsVal.collect { case absVal: ScValueDeclaration => absVal }
+                  .map { v =>
+                    s"def ${v.declaredNames.mkString("")}: M[${v.returnTypeOrAny.firstInnerTypeTxt}]"
+                  }
 
               s"""
                 |trait Interp[M[_]] {
@@ -112,7 +158,7 @@ class freeInjector extends SyntheticMembersInjector {
             }
 
             val sealedTraitSig = sealedTrait.map(_.getText).getOrElse("")
-            Seq(sealedTraitSig, sealedTraitADT, opsObj, injectOpsObj, injectClass, injectClassCompanion, interpTrait)
+            Seq(sealedTraitSig, sealedTraitADT, opsObj, injectOpsObj, injectClass, injectClassCompanion, interpTrait, "val test2: Int = 1")
 
           case _ => Seq.empty
         }

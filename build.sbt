@@ -37,7 +37,7 @@ lazy val core = project
     bintrayVcsUrl := Some("https://github.com/Thangiee/Freasy-Monad")
   )
 
-val pluginVer = "0.2.0"
+val pluginVer = "0.3.0"
 val pluginName = "freasy-monad-plugin"
 lazy val plugin: Project = project
   .enablePlugins(SbtIdeaPlugin)
