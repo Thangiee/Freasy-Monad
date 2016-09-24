@@ -5,11 +5,12 @@ lazy val commonSettings = Seq(
   scalaVersion := "2.11.8"
 )
 
+val libVer = "0.3.0-SNAPSHOT"
 lazy val core = project
   .settings(commonSettings)
   .settings(
     name := "freasy-monad",
-    version := "0.2.0",
+    version := libVer,
     scalacOptions ++= Seq(
       "-feature",
       "-encoding", "UTF-8",
@@ -34,7 +35,14 @@ lazy val core = project
     publishMavenStyle := true,
     bintrayReleaseOnPublish in ThisBuild := false, //  1."sbt core/publish" stage artifacts first 2."sbt core/bintrayRelease" make artifacts public
     licenses += ("MIT", url("http://opensource.org/licenses/MIT")),
-    bintrayVcsUrl := Some("https://github.com/Thangiee/Freasy-Monad")
+    bintrayVcsUrl := Some("https://github.com/Thangiee/Freasy-Monad"),
+    if (libVer.endsWith("-SNAPSHOT"))
+      Seq(
+        publishTo := Some("Artifactory Realm" at "http://oss.jfrog.org/artifactory/oss-snapshot-local"),
+        // Only setting the credentials file if it exists (#52)
+        credentials := List(Path.userHome / ".bintray" / ".artifactory").filter(_.exists).map(Credentials(_))
+      )
+    else Seq.empty
   )
 
 val pluginVer = "0.3.0"
