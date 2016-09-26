@@ -81,16 +81,21 @@ class freeInjector extends SyntheticMembersInjector {
               s"object $sealedTraitName { ${caseClasses.mkString("\n")} }"
             }
 
-            val opsObj =
+            val opsObj = {
+              val typeAliasText = typeAlias.map(_.text).map { alias =>
+                val i = alias.indexOf("""Free[""") + 5
+                s"${alias.substring(0, i)}$absPath.${alias.substring(i, alias.length)}"
+              }
               s"""
-                |object ops {
-                |  ${typeAlias.map(_.text).getOrElse("")}
-                |  ${nonOpsVal.map(_.text).mkString("\n")}
-                |  ${opsVal.map(_.text).mkString("\n")}
-                |  ${nonOpsFunc.map(_.text).mkString("\n")}
-                |  ${opsFunc.map(_.text).mkString("\n")}
-                |}
+                 |object ops {
+                 |  ${typeAliasText.getOrElse("")}
+                 |  ${nonOpsVal.map(_.text).mkString("\n")}
+                 |  ${opsVal.map(_.text).mkString("\n")}
+                 |  ${nonOpsFunc.map(_.text).mkString("\n")}
+                 |  ${opsFunc.map(_.text).mkString("\n")}
+                 |}
               """.stripMargin
+            }
 
             val injectOpsObj = {
               val ops = opsFunc.map { fn =>
