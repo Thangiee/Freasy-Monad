@@ -8,7 +8,7 @@ Add the following to your build.sbt:
 ```scala
 resolvers += Resolver.jcenterRepo
 libraryDependencies ++= Seq(
-  "com.thangiee" %% "freasy-monad" % "0.2.0",
+  "com.thangiee" %% "freasy-monad" % "0.3.0",
   "org.typelevel" %% "cats" % "0.7.2" // requires version 0.7.0+ 
 )
 addCompilerPlugin("org.scalamacros" % "paradise" % "2.1.0" cross CrossVersion.full)
@@ -141,3 +141,12 @@ Intellij users need to install the **Freasy Monad Plugin** to get proper highlig
 1) Download the plugin from https://github.com/Thangiee/Freasy-Monad/tree/master/plugin/bin
 
 2) Go to settings, Plugins section, then click on install plugin from disc, and choose this plugin. 
+
+### Constraints
+
+There are some constraints on `@free trait`, and if violated, will result in a compiler error.
+
+* Can not define `var`.
+* All `val` and `def` need to have explicit return type.
+* Abstract `val` and `def` must have return type of the defined type alias. From the example above, this would be `KVStoreF[...]`.
+* `private` and `protected` access modifiers are not allow, use package-private instead.

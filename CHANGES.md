@@ -1,3 +1,10 @@
+0.3.0 (2016/09/26)
+------------------
+* [#2](https://github.com/Thangiee/Freasy-Monad/issues/2): Support defining `val`
+* Add constraints that result in compiler error. 
+* Optimize generated code.
+* Update plugin 
+
 0.2.0 (2016/09/10)
 ------------------
 * Replace `Free.liftF` with `Free.inject`.
