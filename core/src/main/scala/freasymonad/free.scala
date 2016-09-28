@@ -88,7 +88,7 @@ object freeImpl {
           case DefDef(_, name, tparams, paramss, rt@AppliedTypeTree(_, innerType), _) =>
             val op = {
               val args = paramssToArgsFlatten(paramss)
-              val rhs = q"free.Free.inject[${sealedTrait.name}, F](${adt(sealedTrait, name)}(..$args))"
+              val rhs = q"Free.liftF(I.inj(${adt(sealedTrait, name)}(..$args)))"
               val params = (if (paramss.isEmpty) List.empty else paramss) :+ implicitInject
               q"def $name[..${F +: tparams}](...$params): free.Free[F, ..$innerType] = $rhs".asInstanceOf[DefDef]
             }
@@ -100,7 +100,7 @@ object freeImpl {
             (op, opRef)
           case ValDef(_, name, rt@AppliedTypeTree(_, innerType), rhs) =>
             val op = {
-              val rhs = q"free.Free.inject[${sealedTrait.name}, F](${adt(sealedTrait, name)})"
+              val rhs = q"Free.liftF(I.inj(${adt(sealedTrait, name)}))"
               q"def $name[$F](..$implicitInject): free.Free[F, ..$innerType] = $rhs".asInstanceOf[DefDef]
             }
             val opRef = ValDef(Modifiers(), name, rt, q"injectOps.$name[${sealedTrait.name}]")
@@ -248,7 +248,7 @@ object freeImpl {
            """
 
         val gen = q"..${List(q"trait $tpname", genCompanionObj)}"
-//        println(showCode(gen))
+        println(showCode(gen))
         c.Expr[Any](gen)
 
       case other => c.abort(c.enclosingPosition, s"${showRaw(other)}")

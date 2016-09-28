@@ -163,7 +163,7 @@ class freeInjector extends SyntheticMembersInjector {
             }
 
             val sealedTraitSig = sealedTrait.map(_.getText).getOrElse("")
-            Seq(sealedTraitSig, sealedTraitADT, opsObj, injectOpsObj, injectClass, injectClassCompanion, interpTrait, "val test2: Int = 1")
+            Seq(sealedTraitSig, sealedTraitADT, opsObj, injectOpsObj, injectClass, injectClassCompanion, interpTrait)
 
           case _ => Seq.empty
         }
