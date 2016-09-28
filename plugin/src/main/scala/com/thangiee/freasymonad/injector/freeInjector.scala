@@ -122,7 +122,7 @@ class freeInjector extends SyntheticMembersInjector {
                 s"val ${v.declaredNames.mkString("")}: ${Free(v.returnTypeOrAny)} = ???"
               }
               s"""
-                 |class Inject[F[_]]$implicitInjectParam {
+                 |class Injects[F[_]]$implicitInjectParam {
                  |  ${nonOpsVal.map(_.text).mkString("\n")}
                  |  ${opsVal2.mkString("\n")}
                  |  ${nonOpsFunc.map(_.text).mkString("\n")}
@@ -133,8 +133,8 @@ class freeInjector extends SyntheticMembersInjector {
 
             val injectClassCompanion = {
               s"""
-                 |object Inject {
-                 |  implicit def injectOps[F[_]]$implicitInjectParam: $absPath.Inject[F] = ???
+                 |object Injects {
+                 |  implicit def injectOps[F[_]]$implicitInjectParam: $absPath.Injects[F] = ???
                  |}
                """.stripMargin
             }

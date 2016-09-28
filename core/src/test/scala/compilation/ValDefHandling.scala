@@ -29,7 +29,7 @@ object ValDefHandling extends App {
 
   import KVStore.GrammarADT
 
-  def program1(implicit I: KVStore.Inject[GrammarADT]) = {
+  def program1(implicit I: KVStore.Injects[GrammarADT]) = {
     import I._
     someVal
     val a: Free[GrammarADT, Option[Int]] = getSomeKey[Int]

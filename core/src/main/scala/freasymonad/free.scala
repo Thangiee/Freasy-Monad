@@ -188,13 +188,13 @@ object freeImpl {
               q"def $tname[..${tparams.tail}](...${paramss.dropRight(1)}): $tpt = $rhs"
           }
           q"""
-            class Inject[F[_]](implicit I: free.Inject[${sealedTrait.name}, F]) {
+            class Injects[F[_]](implicit I: free.Inject[${sealedTrait.name}, F]) {
               ..$methods
               ..$concreteNonOpsRef
             }
 
-            object Inject {
-              implicit def injectOps[F[_]](implicit I: free.Inject[${sealedTrait.name}, F]): Inject[F] = new Inject[F]
+            object Injects {
+              implicit def injectOps[F[_]](implicit I: free.Inject[${sealedTrait.name}, F]): Injects[F] = new Injects[F]
             }
            """
         }

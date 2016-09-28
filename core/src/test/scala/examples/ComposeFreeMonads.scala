@@ -35,7 +35,7 @@ object ComposeFreeMonads extends App {
   // program1 and program2 are the same.
   // This library lets you choose which style you like.
 
-  def program1(implicit I: Interact.Inject[CatsApp], D : DataSource.Inject[CatsApp]): Free[CatsApp, Unit] = {
+  def program1(implicit I: Interact.Injects[CatsApp], D : DataSource.Injects[CatsApp]): Free[CatsApp, Unit] = {
     import I._, D._
     for {
       cat  <- ask("What's the kitty's name?")
