@@ -2,7 +2,7 @@ package compilation
 
 import cats.Id
 import cats.free.Free
-import freasymonad.free
+import freasymonad.cats.free
 
 // Make sure vals and defs are compiled correctly for ops/injectOps/Inject
 object ValDefHandling extends App {

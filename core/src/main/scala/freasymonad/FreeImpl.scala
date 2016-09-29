@@ -1,46 +1,43 @@
 package freasymonad
 
-import scala.annotation.{StaticAnnotation, compileTimeOnly}
-import scala.language.experimental.macros
 import scala.reflect.api.Trees
 import scala.reflect.macros.blackbox
 
-@compileTimeOnly("enable macro paradise to expand macro annotations")
-class free extends StaticAnnotation {
-  def macroTransform(annottees: Any*): Any = macro freeImpl.impl
-}
+private[freasymonad] abstract class FreeImpl(val c: blackbox.Context) {
+  import c.universe._
 
-object freeImpl {
+  // imports for cats or scalaz
+  def imports: Tree
 
-  def impl(c: blackbox.Context)(annottees: c.Expr[Any]*): c.Expr[Any] = {
-    import c.universe._
+  def runDef(typeAliasName: TypeName): Tree
 
+  def abort(msg: String) = c.abort(c.enclosingPosition, msg)
+
+  // https://issues.scala-lang.org/browse/SI-8771
+  def fixSI88771(paramss: Any) = paramss.asInstanceOf[List[List[ValDef]]].map(_.map(_.duplicate))
+
+  def replaceContainerType(tree: Trees#Tree, newType: TypeName): AppliedTypeTree = tree match {
+    case AppliedTypeTree(_, inner) => AppliedTypeTree(Ident(newType), inner)
+    case other => abort(s"Not an AppliedTypeTree: ${showRaw(other)}")
+  }
+
+  def adt(sealedTrait: ClassDef, name: Name) =
+    q"${sealedTrait.name.toTermName}.${TermName(name.toString.capitalize)}"
+
+  type Paramss = List[List[ValDef]]
+  def paramssToArgs(paramss: Paramss): List[List[TermName]] =
+    paramss.filter(_.nonEmpty).map(_.collect { case t@ValDef(mods, name, _, _) => name })
+
+  // ex: convert (a: A)(b: B) to (a, b)
+  def paramssToArgsFlatten(paramss: Paramss): List[TermName] =
+    paramss.flatten.collect { case t@ValDef(mods, name, _, _)  => name }
+
+  // remove () if no args
+  def methodCallFmt(method: c.universe.Tree, args: Seq[Seq[TermName]]): c.universe.Tree =
+    if (args.flatten.isEmpty) method else q"$method(...$args)"
+
+  def impl(annottees: c.Expr[Any]*): c.Expr[Any] = {
     val trees = annottees.map(_.tree).toList
-
-    def abort(msg: String) = c.abort(c.enclosingPosition, msg)
-
-    // https://issues.scala-lang.org/browse/SI-8771
-    def fixSI88771(paramss: Any) = paramss.asInstanceOf[List[List[ValDef]]].map(_.map(_.duplicate))
-
-    def replaceContainerType(tree: Trees#Tree, newType: TypeName): AppliedTypeTree = tree match {
-      case AppliedTypeTree(_, inner) => AppliedTypeTree(Ident(newType), inner)
-      case other => abort(s"Not an AppliedTypeTree: ${showRaw(other)}")
-    }
-
-    def adt(sealedTrait: ClassDef, name: Name) =
-      q"${sealedTrait.name.toTermName}.${TermName(name.toString.capitalize)}"
-
-    type Paramss = List[List[ValDef]]
-    def paramssToArgs(paramss: Paramss): List[List[TermName]] =
-      paramss.filter(_.nonEmpty).map(_.collect { case t@ValDef(mods, name, _, _) => name })
-
-    // ex: convert (a: A)(b: B) to (a, b)
-    def paramssToArgsFlatten(paramss: Paramss): List[TermName] =
-      paramss.flatten.collect { case t@ValDef(mods, name, _, _)  => name }
-
-    // remove () if no args
-    def methodCallFmt(method: c.universe.Tree, args: Seq[Seq[TermName]]): c.universe.Tree =
-      if (args.flatten.isEmpty) method else q"$method(...$args)"
 
     trees.headOption match {
       case Some(q"$_ trait ${tpname:TypeName}[..$_] extends { ..$earlydefns } with ..$parents { $self => ..$stats }") =>
@@ -53,7 +50,7 @@ object freeImpl {
         }.getOrElse(abort(s"Require seal trait $freeSType[A]"))
 
         // create param: (implicit I: free.Inject[?, F])
-        val implicitInject = List(ValDef(Modifiers(Flag.IMPLICIT | Flag.PARAM), TermName("I"), tq"free.Inject[${sealedTrait.name.toTypeName}, F]", EmptyTree))
+        val implicitInject = List(ValDef(Modifiers(Flag.IMPLICIT | Flag.PARAM), TermName("I"), tq"Inject[${sealedTrait.name.toTypeName}, F]", EmptyTree))
         val F = q"type F[_]" // higherKind F[_]
 
         def isReturnTypeOfTypeAlias(rt: Tree): Boolean = rt match {
@@ -90,7 +87,7 @@ object freeImpl {
               val args = paramssToArgsFlatten(paramss)
               val rhs = q"Free.liftF(I.inj(${adt(sealedTrait, name)}(..$args)))"
               val params = (if (paramss.isEmpty) List.empty else paramss) :+ implicitInject
-              q"def $name[..${F +: tparams}](...$params): free.Free[F, ..$innerType] = $rhs".asInstanceOf[DefDef]
+              q"def $name[..${F +: tparams}](...$params): Free[F, ..$innerType] = $rhs".asInstanceOf[DefDef]
             }
             val opRef = {
               val args = paramssToArgs(paramss)
@@ -101,7 +98,7 @@ object freeImpl {
           case ValDef(_, name, rt@AppliedTypeTree(_, innerType), rhs) =>
             val op = {
               val rhs = q"Free.liftF(I.inj(${adt(sealedTrait, name)}))"
-              q"def $name[$F](..$implicitInject): free.Free[F, ..$innerType] = $rhs".asInstanceOf[DefDef]
+              q"def $name[$F](..$implicitInject): Free[F, ..$innerType] = $rhs".asInstanceOf[DefDef]
             }
             val opRef = ValDef(Modifiers(), name, rt, q"injectOps.$name[${sealedTrait.name}]")
             (op, opRef)
@@ -133,9 +130,9 @@ object freeImpl {
           // defs that contain the real implementation
           val injectOps: Seq[DefDef] = ops.map {
             case DefDef(mods, tname, tp, paramss, AppliedTypeTree(_, innerType), rhs) =>
-              q"$mods def $tname[..${F +: tp}](...${paramss :+ implicitInject}): free.Free[F, ..$innerType] = ${transformer.transform(rhs)}".asInstanceOf[DefDef]
+              q"$mods def $tname[..${F +: tp}](...${paramss :+ implicitInject}): Free[F, ..$innerType] = ${transformer.transform(rhs)}".asInstanceOf[DefDef]
             case ValDef(mods, tname, AppliedTypeTree(_, innerType), rhs) =>
-              q"$mods def $tname[$F](..$implicitInject): free.Free[F, ..$innerType] = ${transformer.transform(rhs)}".asInstanceOf[DefDef]
+              q"$mods def $tname[$F](..$implicitInject): Free[F, ..$innerType] = ${transformer.transform(rhs)}".asInstanceOf[DefDef]
           }
 
           // vals and defs that call to defs in injectOps
@@ -188,13 +185,13 @@ object freeImpl {
               q"def $tname[..${tparams.tail}](...${paramss.dropRight(1)}): $tpt = $rhs"
           }
           q"""
-            class Injects[F[_]](implicit I: free.Inject[${sealedTrait.name}, F]) {
+            class Injects[F[_]](implicit I: Inject[${sealedTrait.name}, F]) {
               ..$methods
               ..$concreteNonOpsRef
             }
 
             object Injects {
-              implicit def injectOps[F[_]](implicit I: free.Inject[${sealedTrait.name}, F]): Injects[F] = new Injects[F]
+              implicit def injectOps[F[_]](implicit I: Inject[${sealedTrait.name}, F]): Injects[F] = new Injects[F]
             }
            """
         }
@@ -219,7 +216,7 @@ object freeImpl {
         val genCompanionObj =
           q"""
             object ${tpname.toTermName} {
-              import cats._
+              ..$imports
               import scala.language.higherKinds
               $sealedTrait
               $genCaseClassesAndObjADT
@@ -241,7 +238,7 @@ object freeImpl {
                     }}
                   }
                 }
-                def run[A](op: ${typeAlias.name}[A])(implicit m: Monad[M], r: RecursiveTailRecM[M]): M[A] = op.foldMap(interpreter)
+                ${runDef(typeAlias.name)}
                 ..$methodsToBeImpl
               }
             }

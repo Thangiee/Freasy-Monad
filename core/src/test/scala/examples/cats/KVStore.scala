@@ -1,8 +1,8 @@
-package examples
+package examples.cats
 
 import cats.Id
 import cats.free.Free
-import freasymonad.free
+import freasymonad.cats.free
 
 import scala.collection.mutable
 import scala.concurrent.duration.Duration

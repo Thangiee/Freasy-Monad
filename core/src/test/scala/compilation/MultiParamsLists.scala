@@ -2,7 +2,7 @@ package compilation
 
 import cats._
 import cats.free.Free
-import freasymonad.free
+import freasymonad.cats.free
 
 import scala.collection.mutable
 

@@ -1,9 +1,9 @@
-package examples
+package examples.cats
 
 import cats.data.Coproduct
 import cats.free.Free
 import cats.{Id, ~>}
-import freasymonad.free
+import freasymonad.cats.free
 
 import scala.collection.mutable.ListBuffer
 import scala.io.StdIn
