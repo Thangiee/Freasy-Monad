@@ -21,20 +21,17 @@ private[freasymonad] abstract class FreeImpl(val c: blackbox.Context) {
     case other => abort(s"Not an AppliedTypeTree: ${showRaw(other)}")
   }
 
-  def adt(sealedTrait: ClassDef, name: Name) =
-    q"${sealedTrait.name.toTermName}.${TermName(name.toString.capitalize)}"
+  def adt(sealedTrait: ClassDef, name: Name) = q"${sealedTrait.name.toTermName}.${TermName(name.toString.capitalize)}"
 
   type Paramss = List[List[ValDef]]
   def paramssToArgs(paramss: Paramss): List[List[TermName]] =
     paramss.filter(_.nonEmpty).map(_.collect { case t@ValDef(mods, name, _, _) => name })
 
   // ex: convert (a: A)(b: B) to (a, b)
-  def paramssToArgsFlatten(paramss: Paramss): List[TermName] =
-    paramss.flatten.collect { case t@ValDef(mods, name, _, _)  => name }
+  def paramssToArgsFlatten(paramss: Paramss): List[TermName] = paramss.flatten.collect { case t@ValDef(mods, name, _, _)  => name }
 
   // remove () if no args
-  def methodCallFmt(method: c.universe.Tree, args: Seq[Seq[TermName]]): c.universe.Tree =
-    if (args.flatten.isEmpty) method else q"$method(...$args)"
+  def methodCallFmt(method: c.universe.Tree, args: Seq[Seq[TermName]]) = if (args.flatten.isEmpty) method else q"$method(...$args)"
 
   def impl(annottees: c.Expr[Any]*): c.Expr[Any] = {
     val trees = annottees.map(_.tree).toList
