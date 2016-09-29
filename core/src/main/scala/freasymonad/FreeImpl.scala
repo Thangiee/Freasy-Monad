@@ -242,7 +242,7 @@ private[freasymonad] abstract class FreeImpl(val c: blackbox.Context) {
            """
 
         val gen = q"..${List(q"trait $tpname", genCompanionObj)}"
-        println(showCode(gen))
+//        println(showCode(gen))
         c.Expr[Any](gen)
 
       case other => c.abort(c.enclosingPosition, s"${showRaw(other)}")

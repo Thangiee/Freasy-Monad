@@ -1,15 +1,27 @@
 #Freasy Monad
-Freasy Monad library makes it **easy** to create **Free Monad** from [typelevel/cats](https://github.com/typelevel/cats).
+Freasy Monad library makes it **easy** to create **Free Monad** for [typelevel/cats](https://github.com/typelevel/cats)
+and [scalaz/scalaz](https://github.com/scalaz/scalaz).
 
 It also integrate nicely with Intellij through a plugin to provide proper highlighting & code completion. 
 
 ##Getting started
-Add the following to your build.sbt: 
+If you are using `cats`, add the following to your build.sbt: 
+
 ```scala
 resolvers += Resolver.jcenterRepo
 libraryDependencies ++= Seq(
-  "com.thangiee" %% "freasy-monad" % "0.3.0",
+  "com.thangiee" %% "freasy-monad" % "0.4.0",
   "org.typelevel" %% "cats" % "0.7.2" // requires version 0.7.0+ 
+)
+addCompilerPlugin("org.scalamacros" % "paradise" % "2.1.0" cross CrossVersion.full)
+```
+
+If you are using `scalaz`, add the following to your build.sbt: 
+```scala
+resolvers += Resolver.jcenterRepo
+libraryDependencies ++= Seq(
+  "com.thangiee" %% "freasy-monad" % "0.4.0",
+  "org.scalaz" %% "scalaz-core" % "7.2.6"
 )
 addCompilerPlugin("org.scalamacros" % "paradise" % "2.1.0" cross CrossVersion.full)
 ```
@@ -19,8 +31,8 @@ Key-value store example from [cats website](http://typelevel.org/cats/tut/freemo
 
 ```scala
   import cats._
-  import cats.free.Free
-  import freasymonad.free
+  import cats.Free
+  import freasymonad.cats.free // or freasymonad.scalaz.free
   import scala.collection.mutable
 
   @free trait KVStore {                     // you can use any names you like
@@ -62,13 +74,13 @@ Key-value store example from [cats website](http://typelevel.org/cats/tut/freemo
 
   impureInterpreter.run(program)
 ```
+Above example for scalaz [here](https://github.com/Thangiee/Freasy-Monad/blob/master/core/src/test/scala/examples/scalaz/KVStore.scala).
 
 During compile time, `KVStore` is expanded to something similar to:
 ```scala
-  trait KVStore {}
-  
   object KVStore {
     import cats._
+    import cats.free._
     import scala.language.higherKinds
     sealed trait GrammarADT[A]
     object GrammarADT {
@@ -82,21 +94,21 @@ During compile time, `KVStore` is expanded to something similar to:
       def update[T](key: String, f: T => T): KVStoreF[Unit] = injectOps.update[GrammarADT, T](key, f) 
     }
     object injectOps {
-      def put[F[_], T](key: String, value: T)(implicit I: free.Inject[GrammarADT, F]): free.Free[F, Unit] = free.Free.inject[GrammarADT, F](GrammarADT.Put(key, value));
-      def get[F[_], T](key: String)(implicit I: free.Inject[GrammarADT, F]): free.Free[F, Option[T]] = free.Free.inject[GrammarADT, F](GrammarADT.Get(key));
-      def update[F[_], T](key: String, f: T => T)(implicit I: free.Inject[GrammarADT, F]): free.Free[F, Unit] =
+      def put[F[_], T](key: String, value: T)(implicit I: Inject[GrammarADT, F]): Free[F, Unit] = Free.liftF(I.inj(GrammarADT.Put(key, value)));
+      def get[F[_], T](key: String)(implicit I: Inject[GrammarADT, F]): Free[F, Option[T]] = Free.liftF(I.inj(GrammarADT.Get(key)));
+      def update[F[_], T](key: String, f: T => T)(implicit I: Inject[GrammarADT, F]): Free[F, Unit] =
         for {
           vMaybe <- get[F, T](key)
           _      <- vMaybe.map(v => put[F, T](key, f(v))).getOrElse(Free.pure(()))
         } yield ()
     }
-    class Inject[F[_]](implicit I: free.Inject[GrammarADT, F]) {
-      def put[T](key: String, value: T): free.Free[F, Unit] = injectOps.put[F, T](key, value);
-      def get[T](key: String): free.Free[F, Option[T]] = injectOps.get[F, T](key);
-      def update[T](key: String, f: T => T): free.Free[F, Unit] = injectOps.update[F, T](key, f)
+    class Injects[F[_]](implicit I: Inject[GrammarADT, F]) {
+      def put[T](key: String, value: T): Free[F, Unit] = injectOps.put[F, T](key, value);
+      def get[T](key: String): Free[F, Option[T]] = injectOps.get[F, T](key);
+      def update[T](key: String, f: T => T): Free[F, Unit] = injectOps.update[F, T](key, f)
     }
-    object Inject {
-      implicit def injectOps[F[_]](implicit I: free.Inject[GrammarADT, F]): Inject[F] = new Inject[F]()
+    object Injects {
+      implicit def injectOps[F[_]](implicit I: Inject[GrammarADT, F]): Inject[F] = new Inject[F]()
     }
     trait Interp[M[_]] {
       import ops._
@@ -117,9 +129,11 @@ During compile time, `KVStore` is expanded to something similar to:
 
 * From the expanded version, we can see that the `free` macro takes care most of the tedious parts when it
 comes to writing free monad. The macro uses our abstract methods to define the ADT case classes, create smart 
-constructors to case classes, and do pattern matching on all case classes. 
+constructors to case classes, and do pattern matching on the ADT. 
 
-* This library also generate `Free.Inject` for composing Free monads ADTs. See example [**here.**](https://github.com/Thangiee/Freasy-Monad/blob/master/core/src/test/scala/examples/ComposeFreeMonads.scala)
+* This library also generate `Inject` for composing Free monads ADTs. See example for 
+[**cats**](https://github.com/Thangiee/Freasy-Monad/blob/master/core/src/test/scala/examples/cats/ComposeFreeMonads.scala) and
+[**scalaz.**](https://github.com/Thangiee/Freasy-Monad/blob/master/core/src/test/scala/examples/scalaz/ComposeFreeMonads.scala)
 
 * Writing an interpreter using Intellij becomes a breeze:
 

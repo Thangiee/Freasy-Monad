@@ -1,3 +1,10 @@
+0.4.0 (2016/09/29)
+------------------
+* Add support for scalaz. (`freasymonad.scalaz.free`)
+* **BREAKING CHANGE!** Rename `freasymonad.free` annotation to `freasymonad.cats.free`.
+* **BREAKING CHANGE!** Rename `Inject` class to `Injects`.
+* Update plugin 
+
 0.3.0 (2016/09/26)
 ------------------
 * [#2](https://github.com/Thangiee/Freasy-Monad/issues/2): Support defining `val`

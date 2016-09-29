@@ -5,7 +5,7 @@ lazy val commonSettings = Seq(
   scalaVersion := "2.11.8"
 )
 
-val libVer = "0.3.0"
+val libVer = "0.4.0"
 lazy val core = project
   .settings(commonSettings)
   .settings(
@@ -26,6 +26,7 @@ lazy val core = project
     ),
     libraryDependencies ++= Seq(
       "org.typelevel" %% "cats" % "0.7.2" % "provided",
+      "org.scalaz" %% "scalaz-core" % "7.2.6" % "provided",
       "org.scala-lang" % "scala-reflect" % "2.11.8",
       "org.scalatest" %% "scalatest" % "3.0.0" % "test"
     ),
@@ -45,7 +46,7 @@ lazy val core = project
     else Seq.empty
   )
 
-val pluginVer = "0.3.0"
+val pluginVer = "0.4.0"
 val pluginName = "freasy-monad-plugin"
 lazy val plugin: Project = project
   .enablePlugins(SbtIdeaPlugin)
