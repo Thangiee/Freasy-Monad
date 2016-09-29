@@ -1,7 +1,7 @@
 <idea-plugin version="2">
     <id>com.thangiee.freasy-monad</id>
     <name>Freasy Monad Plugin</name>
-    <version>0.3.0</version>
+    <version>0.4.0</version>
     <vendor url="https://github.com/Thangiee/Freasy-Monad" email="thangiee12@gmail.com">Thang Le</vendor>
 
     <description>
@@ -11,7 +11,7 @@
     <idea-version since-build="143.0"/>
 
     <change-notes>
-        *Targets library version 0.3.x
+        *Targets library version 0.4.x
     </change-notes>
 
     <depends>org.intellij.scala</depends>
@@ -25,7 +25,8 @@
     </project-components>
 
     <extensions defaultExtensionNs="org.intellij.scala">
-        <syntheticMemberInjector implementation="com.thangiee.freasymonad.injector.freeInjector"/>
+        <syntheticMemberInjector implementation="com.thangiee.freasymonad.injector.CatsFreeInjector"/>
+        <syntheticMemberInjector implementation="com.thangiee.freasymonad.injector.ScalazFreeInjector"/>
     </extensions>
 
     <extensions defaultExtensionNs="com.intellij">

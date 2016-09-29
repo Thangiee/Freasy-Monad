@@ -1,7 +1,7 @@
 package com.thangiee.freasymonad.injector
 
 import com.intellij.psi.PsiClass
-import com.thangiee.freasymonad.injector.freeInjector._
+import com.thangiee.freasymonad.injector.FreeInjector._
 import org.jetbrains.plugins.scala.lang.psi.ScalaPsiUtil
 import org.jetbrains.plugins.scala.lang.psi.api.statements._
 import org.jetbrains.plugins.scala.lang.psi.api.toplevel.typedef._
@@ -9,7 +9,7 @@ import org.jetbrains.plugins.scala.lang.psi.impl.toplevel.typedef._
 import org.jetbrains.plugins.scala.lang.psi.types.result.TypingContext
 import org.jetbrains.plugins.scala.lang.psi.types.{ScParameterizedType, ScType}
 
-object freeInjector {
+object FreeInjector {
   implicit class RichFunc(val value: ScFunction) {
     val typeParamsTxt: String = value.typeParametersClause.map(_.getText).getOrElse("")
     val paramsTxt    : String = value.paramClauses.text
@@ -35,17 +35,25 @@ object freeInjector {
   }
 }
 
-class freeInjector extends SyntheticMembersInjector {
+trait FreeInjector extends SyntheticMembersInjector {
+
+  def annotationName: String
+
+  def Inject: String
+
+  def imports: String
+
+  def runImplicitParams: String
 
   override def needsCompanionObject(source: ScTypeDefinition): Boolean = {
-    source.findAnnotationNoAliases("freasymonad.free") != null
+    source.findAnnotationNoAliases(annotationName) != null
   }
 
   override def injectInners(source: ScTypeDefinition): Seq[String] = {
     source match {
       case obj: ScObject =>
         ScalaPsiUtil.getCompanionModule(obj) match {
-          case Some(scTrait: ScTraitImpl) if scTrait.findAnnotationNoAliases("freasymonad.free") != null =>
+          case Some(scTrait: ScTraitImpl) if scTrait.findAnnotationNoAliases(annotationName) != null =>
             val typeAlias: Option[ScTypeAlias] = scTrait.aliases.headOption
             val typeAliasName: String = typeAlias.map(_.name).getOrElse("")
 
@@ -71,8 +79,8 @@ class freeInjector extends SyntheticMembersInjector {
                 }
                 .partition(_.returnTypeOrAny.canonicalText.split('[').head.contains(typeAliasName))
 
-            val implicitInjectParam: String = s"(implicit I: cats.free.Inject[$absPath.$sealedTraitName, F])"
-            def Free(A: ScType): String = s"cats.free.Free[F, ${A.firstInnerTypeTxt}]"
+            val implicitInjectParam: String = s"(implicit I: $Inject[$absPath.$sealedTraitName, F])"
+            def Free(A: ScType): String = s"Free[F, ${A.firstInnerTypeTxt}]"
 
             val sealedTraitADT = {
               val caseClasses = opsFunc.map { fn =>
@@ -152,12 +160,12 @@ class freeInjector extends SyntheticMembersInjector {
 
               s"""
                 |trait Interp[M[_]] {
-                |  import cats._
+                |  $imports
                 |  val interpreter: $absPath.$sealedTraitName ~> M = {
                 |    def apply[A](fa: $absPath.$sealedTraitName[A]): M[A]
                 |  }
                 |  ${funcsToBeImpl.mkString("\n")}
-                |  def run[A](op: $absPath.ops.$typeAliasName[A])(implicit m: Monad[M], r: RecursiveTailRecM[M]): M[A] = ???
+                |  def run[A](op: $absPath.ops.$typeAliasName[A])($runImplicitParams): M[A] = ???
                 |}
               """.stripMargin
             }
