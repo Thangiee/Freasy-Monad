@@ -31,7 +31,7 @@ Key-value store example from [cats website](http://typelevel.org/cats/tut/freemo
 
 ```scala
   import cats._
-  import cats.Free
+  import cats.free._
   import freasymonad.cats.free // or freasymonad.scalaz.free
   import scala.collection.mutable
 
