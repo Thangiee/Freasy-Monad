@@ -11,7 +11,7 @@ import freasymonad.cats.free
 
   def getAll[T]: FilterStoreF[List[T]]
 
-  // fix: expanded code do not add type param F in injectsOps for some cases such as this one.
+  // fix: expanded code does not add type param F to method's rhs in Injects class in some cases such as this one
   def getCount: FilterStoreF[Int] = getAll[Any].map(_.length).map(identity)
 }
 

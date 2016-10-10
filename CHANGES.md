@@ -1,3 +1,10 @@
+0.4.1 (2016/10/10)
+------------------
+* [#4](https://github.com/Thangiee/Freasy-Monad/issues/2): 
+  Fix expanded code does not add type param F to method's rhs in Injects class in some cases.
+* [#4](https://github.com/Thangiee/Freasy-Monad/issues/2): 
+  Fix: empty-parentheses cause "too many arguments" error for methods in Injects class.
+
 0.4.0 (2016/09/29)
 ------------------
 * Add support for scalaz. (`freasymonad.scalaz.free`)

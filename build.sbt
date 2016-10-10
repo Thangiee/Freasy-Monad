@@ -5,7 +5,7 @@ lazy val commonSettings = Seq(
   scalaVersion := "2.11.8"
 )
 
-val libVer = "0.4.0"
+val libVer = "0.4.1"
 lazy val core = project
   .settings(commonSettings)
   .settings(
