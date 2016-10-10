@@ -177,15 +177,15 @@ private[freasymonad] abstract class FreeImpl(val c: blackbox.Context) {
         }
 
         val injectClass = {
-          val methods = (liftedOps ++ concreteOps).map {
+          val opsRef = (liftedOps ++ concreteOps).map {
             case q"$_ def $tname[..${tparams:List[TypeDef]}](...${paramss:Paramss}): $tpt = $_" =>
-              val rhs = methodCallFmt(q"injectOps.$tname[..${tparams.map(_.name)}]", paramssToArgs(paramss))
+              val rhs = methodCallFmt(q"injectOps.$tname[..${tparams.map(_.name)}]", paramssToArgs(paramss.dropRight(1)))
               // tail to remove the F[_] from tparams; dropRight(1) to remove implicit param
               q"def $tname[..${tparams.tail}](...${paramss.dropRight(1)}): $tpt = $rhs"
           }
           q"""
             class Injects[F[_]](implicit I: Inject[${sealedTrait.name}, F]) {
-              ..$methods
+              ..$opsRef
               ..$concreteNonOpsRef
             }
 
