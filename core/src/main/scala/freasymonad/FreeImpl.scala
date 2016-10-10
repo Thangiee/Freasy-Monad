@@ -114,9 +114,11 @@ private[freasymonad] abstract class FreeImpl(val c: blackbox.Context) {
           }
 
           // append type param F to all call to methods that will be in injectOps Obj (to satisfy F[_]).
-          val transformer = new Transformer {
+          val addFTransformer = new Transformer {
             val injectOps = liftedOps ++ ops
             override def transform(tree: c.universe.Tree): c.universe.Tree = tree match {
+              case Apply(Select(TypeApply(Ident(name:TermName), tp), name2), args) if injectOps.exists(_.name == name) =>
+                super.transform(Apply(Select(TypeApply(Ident(name), tq"F" :: tp), name2), args))
               case Apply(TypeApply(Ident(name:TermName), tp), args) if injectOps.exists(_.name == name) =>
                 super.transform(q"$name[..${tq"F" +: tp}](..$args)")
               case _ =>
@@ -127,9 +129,9 @@ private[freasymonad] abstract class FreeImpl(val c: blackbox.Context) {
           // defs that contain the real implementation
           val injectOps: Seq[DefDef] = ops.map {
             case DefDef(mods, tname, tp, paramss, AppliedTypeTree(_, innerType), rhs) =>
-              q"$mods def $tname[..${F +: tp}](...${paramss :+ implicitInject}): Free[F, ..$innerType] = ${transformer.transform(rhs)}".asInstanceOf[DefDef]
+              q"$mods def $tname[..${F +: tp}](...${paramss :+ implicitInject}): Free[F, ..$innerType] = ${addFTransformer.transform(rhs)}".asInstanceOf[DefDef]
             case ValDef(mods, tname, AppliedTypeTree(_, innerType), rhs) =>
-              q"$mods def $tname[$F](..$implicitInject): Free[F, ..$innerType] = ${transformer.transform(rhs)}".asInstanceOf[DefDef]
+              q"$mods def $tname[$F](..$implicitInject): Free[F, ..$innerType] = ${addFTransformer.transform(rhs)}".asInstanceOf[DefDef]
           }
 
           // vals and defs that call to defs in injectOps
