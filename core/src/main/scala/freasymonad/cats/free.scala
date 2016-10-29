@@ -19,7 +19,4 @@ class CatsFreeImpl(ctx: blackbox.Context) extends FreeImpl(ctx) {
        import cats._
        import cats.free._
      """
-
-  def runDef(typeAliasName: TypeName): Tree =
-    q"def run[A](op: $typeAliasName[A])(implicit m: Monad[M], r: RecursiveTailRecM[M]): M[A] = op.foldMap(interpreter)"
 }

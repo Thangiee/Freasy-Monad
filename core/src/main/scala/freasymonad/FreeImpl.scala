@@ -9,8 +9,6 @@ private[freasymonad] abstract class FreeImpl(val c: blackbox.Context) {
   // imports for cats or scalaz
   def imports: Tree
 
-  def runDef(typeAliasName: TypeName): Tree
-
   def abort(msg: String) = c.abort(c.enclosingPosition, msg)
 
   // https://issues.scala-lang.org/browse/SI-8771
@@ -237,7 +235,7 @@ private[freasymonad] abstract class FreeImpl(val c: blackbox.Context) {
                     }}
                   }
                 }
-                ${runDef(typeAlias.name)}
+                def run[A](op: ${typeAlias.name}[A])(implicit m: Monad[M]): M[A] = op.foldMap(interpreter)
                 ..$methodsToBeImpl
               }
             }

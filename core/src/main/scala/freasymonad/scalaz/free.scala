@@ -13,9 +13,5 @@ class free extends StaticAnnotation {
 
 class ScalazFreeImpl(ctx: blackbox.Context) extends FreeImpl(ctx) {
   import c.universe._
-
   val imports: Tree = q"import scalaz._"
-
-  def runDef(typeAliasName: TypeName): Tree =
-    q"def run[A](op: $typeAliasName[A])(implicit m: Monad[M]): M[A] = op.foldMap(interpreter)"
 }
