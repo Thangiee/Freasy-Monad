@@ -2,7 +2,7 @@ onLoad in Global := ((s: State) => { "updateIdea" :: s}) compose (onLoad in Glob
 
 lazy val commonSettings = Seq(
   organization := "com.thangiee",
-  scalaVersion in ThisBuild := "2.12.0-RC2",
+  scalaVersion in ThisBuild := "2.11.8",
   crossScalaVersions in ThisBuild := Seq("2.11.8", "2.12.0-RC2")
 )
 
