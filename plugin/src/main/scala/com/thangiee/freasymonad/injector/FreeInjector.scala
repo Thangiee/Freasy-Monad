@@ -43,8 +43,6 @@ trait FreeInjector extends SyntheticMembersInjector {
 
   def imports: String
 
-  def runImplicitParams: String
-
   override def needsCompanionObject(source: ScTypeDefinition): Boolean = {
     source.findAnnotationNoAliases(annotationName) != null
   }
@@ -165,7 +163,7 @@ trait FreeInjector extends SyntheticMembersInjector {
                 |    def apply[A](fa: $absPath.$sealedTraitName[A]): M[A]
                 |  }
                 |  ${funcsToBeImpl.mkString("\n")}
-                |  def run[A](op: $absPath.ops.$typeAliasName[A])($runImplicitParams): M[A] = ???
+                |  def run[A](op: $absPath.ops.$typeAliasName[A])(implicit m: Monad[M]): M[A] = ???
                 |}
               """.stripMargin
             }

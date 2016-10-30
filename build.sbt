@@ -47,7 +47,7 @@ lazy val core = project
     else Seq.empty
   )
 
-val pluginVer = "0.4.0"
+val pluginVer = "0.5.0"
 val pluginName = "freasy-monad-plugin"
 lazy val plugin: Project = project
   .enablePlugins(SbtIdeaPlugin)
@@ -57,10 +57,10 @@ lazy val plugin: Project = project
     version := pluginVer,
     assemblyOption in assembly := (assemblyOption in assembly).value.copy(includeScala = false),
     ideaInternalPlugins := Seq(),
-    ideaExternalPlugins := Seq(IdeaPlugin.Zip("scala-plugin", url("https://plugins.jetbrains.com/plugin/download?pr=&updateId=27915"))),
+    ideaExternalPlugins := Seq(IdeaPlugin.Zip("scala-plugin", url("https://plugins.jetbrains.com/plugin/download?pr=&updateId=29035"))),
     aggregate in updateIdea := false,
     assemblyExcludedJars in assembly <<= ideaFullJars,
-    ideaBuild := "163.3512.7"
+    ideaBuild := "163.6957.12"
   )
 
 lazy val ideaRunner: Project = project.in(file("ideaRunner"))
