@@ -1,13 +1,14 @@
 onLoad in Global := ((s: State) => { "updateIdea" :: s}) compose (onLoad in Global).value
 
+crossScalaVersions in ThisBuild := Seq("2.11.8", "2.12.0-RC2")
+
 lazy val commonSettings = Seq(
   organization := "com.thangiee",
-  scalaVersion in ThisBuild := "2.11.8",
-  crossScalaVersions in ThisBuild := Seq("2.11.8", "2.12.0-RC2")
+  scalaVersion in ThisBuild := "2.11.8"
 )
 
 val libVer = "0.5.0"
-lazy val core = project
+lazy val core = crossProject
   .settings(commonSettings)
   .settings(
     name := "freasy-monad",
@@ -26,8 +27,8 @@ lazy val core = project
       "-unchecked"
     ),
     libraryDependencies ++= Seq(
-      "org.typelevel" %% "cats" % "0.8.0" % "provided",
-      "org.scalaz" %% "scalaz-core" % "7.2.6" % "provided",
+      "org.typelevel" %%% "cats" % "0.8.0" % "provided",
+      "org.scalaz" %%% "scalaz-core" % "7.2.6" % "provided",
       "org.scala-lang" % "scala-reflect" % "2.11.8",
       "org.scalatest" %% "scalatest" % "3.0.0" % "test"
     ),
@@ -46,6 +47,12 @@ lazy val core = project
       )
     else Seq.empty
   )
+  .enablePlugins(ScalaJSPlugin)
+  .jvmSettings()
+  .jsSettings()
+
+lazy val coreJS = core.js
+lazy val coreJVM = core.jvm
 
 val pluginVer = "0.5.0"
 val pluginName = "freasy-monad-plugin"

@@ -50,7 +50,7 @@ fabric.properties
 .lib/
 dist/*
 target/
-*/target/
+core/shared/target/
 lib_managed/
 src_managed/
 project/boot/
