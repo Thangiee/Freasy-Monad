@@ -83,7 +83,7 @@ lazy val plugin: Project = project
     ideaInternalPlugins := Seq(),
     ideaExternalPlugins := Seq(IdeaPlugin.Zip("scala-plugin", url("https://plugins.jetbrains.com/plugin/download?pr=&updateId=29035"))),
     aggregate in updateIdea := false,
-    assemblyExcludedJars in assembly <<= ideaFullJars,
+    assemblyExcludedJars in assembly := ideaFullJars.value,
     ideaBuild := "163.6957.12"
   )
 
@@ -93,14 +93,15 @@ lazy val ideaRunner: Project = project.in(file("ideaRunner"))
   .settings(
     name := "ideaRunner",
     autoScalaLibrary := false,
-    unmanagedJars in Compile <<= ideaMainJars.in(plugin),
+    unmanagedJars in Compile := ideaMainJars.in(plugin).value,
     unmanagedJars in Compile += file(System.getProperty("java.home")).getParentFile / "lib" / "tools.jar"
   )
 
 lazy val packagePlugin = TaskKey[File]("package-plugin", "Create plugin's zip file ready to load into IDEA")
 
-packagePlugin in plugin <<= (assembly in plugin, ivyPaths) map { (ideaJar, paths) =>
-  val ivyLocal = paths.ivyHome.getOrElse(file(System.getProperty("user.home")) / ".ivy2") / "local"
+packagePlugin in plugin := {
+  val ideaJar = (assembly in plugin).value
+  val paths = ivyPaths.value
   val sources = Seq(ideaJar -> s"$pluginName/lib/${ideaJar.getName}")
   val out = plugin.base / "bin" / s"$pluginName-$pluginVer.zip"
   IO.zip(sources, out)
