@@ -27,7 +27,7 @@ addCompilerPlugin("org.scalamacros" % "paradise" % "2.1.0" cross CrossVersion.fu
 ```
 
 ##`@free` macro
-Key-value store example from [cats website](http://typelevel.org/cats/tut/freemonad.html) using `free` macro:
+Key-value store example from [cats website](http://typelevel.org/cats/datatypes/freemonad.html) using `free` macro:
 
 ```scala
   import cats._
@@ -74,7 +74,7 @@ Key-value store example from [cats website](http://typelevel.org/cats/tut/freemo
 
   impureInterpreter.run(program)
 ```
-Above example for scalaz [here](https://github.com/Thangiee/Freasy-Monad/blob/master/core/src/test/scala/examples/scalaz/KVStore.scala).
+Above example for scalaz [here](https://github.com/Thangiee/Freasy-Monad/blob/master/core/shared/src/test/scala/examples/scalaz/KVStore.scala).
 
 During compile time, `KVStore` is expanded to something similar to:
 ```scala
@@ -132,8 +132,8 @@ comes to writing free monad. The macro uses our abstract methods to define the A
 constructors to case classes, and do pattern matching on the ADT. 
 
 * This library also generate `Inject` for composing Free monads ADTs. See example for 
-[**cats**](https://github.com/Thangiee/Freasy-Monad/blob/master/core/src/test/scala/examples/cats/ComposeFreeMonads.scala) and
-[**scalaz.**](https://github.com/Thangiee/Freasy-Monad/blob/master/core/src/test/scala/examples/scalaz/ComposeFreeMonads.scala)
+[**cats**](https://github.com/Thangiee/Freasy-Monad/blob/master/core/shared/src/test/scala/examples/cats/ComposeFreeMonads.scala) and
+[**scalaz.**](https://github.com/Thangiee/Freasy-Monad/blob/master/core/shared/src/test/scala/examples/scalaz/ComposeFreeMonads.scala)
 
 * Writing an interpreter using Intellij becomes a breeze:
 

@@ -8,7 +8,7 @@ import freasymonad.cats.free
 import scala.collection.mutable.ListBuffer
 import scala.io.StdIn
 
-// example based off https://github.com/typelevel/cats/blob/master/docs/src/main/tut/freemonad.md#composing-free-monads-adts
+// example based off https://github.com/typelevel/cats/blob/master/docs/src/main/tut/datatypes/freemonad.md#composing-free-monads-adts
 object ComposeFreeMonads extends App {
 
   @free trait Interact {
