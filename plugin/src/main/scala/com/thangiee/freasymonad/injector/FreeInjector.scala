@@ -6,16 +6,26 @@ import org.jetbrains.plugins.scala.lang.psi.ScalaPsiUtil
 import org.jetbrains.plugins.scala.lang.psi.api.statements._
 import org.jetbrains.plugins.scala.lang.psi.api.toplevel.typedef._
 import org.jetbrains.plugins.scala.lang.psi.impl.toplevel.typedef._
+import org.jetbrains.plugins.scala.lang.psi.types.ScType
 import org.jetbrains.plugins.scala.lang.psi.types.result.TypingContext
-import org.jetbrains.plugins.scala.lang.psi.types.{ScParameterizedType, ScType}
 
 object FreeInjector {
-  implicit class RichFunc(val value: ScFunction) {
-    val typeParamsTxt: String = value.typeParametersClause.map(_.getText).getOrElse("")
-    val paramsTxt    : String = value.paramClauses.text
-    val argsText     : String = s"(${value.parameters.map(_.name).mkString(", ")})"
+  implicit class RichFunc(val fn: ScFunction) {
+    val typeParamsTxt: String = fn.typeParametersClause.map(_.getText).getOrElse("")
+    val argsText     : String = s"(${fn.parameters.map(_.name).mkString(", ")})"
+    val paramsTxt    : String = {
+      fn.paramClauses.clauses.map { cause =>
+        val params = cause.parameters.map { p =>
+          val lhs = s"${p.name}: ${p.typeElement.fold("Any")(_.getText)}"
+          if (p.isDefaultParam) lhs + " = " + p.getDefaultExpression.fold("{}")(_.getText)
+          else if (p.isRepeatedParameter) lhs + "*"
+          else lhs
+        }.mkString(", ")
+        s"($params)"
+      }.mkString
+    }
 
-    val returnTypeOrAny: ScType      = value.returnType.getOrAny
+    val returnTypeOrAny: ScType      = fn.returnType.getOrAny
 
     def appendTypeParam(tp: String): String =
       if (typeParamsTxt.isEmpty) s"[$tp]" else s"[$tp, ${typeParamsTxt.tail.dropRight(1)}]"
@@ -26,12 +36,12 @@ object FreeInjector {
   }
 
   implicit class RichScType(scType: ScType) {
-    val innerTypes : Seq[ScType] = scType match {
-      case tpe: ScParameterizedType => tpe.typeArguments
-      case _ => Seq.empty
+    // ex. A[B, C] -> B, C -> B
+    val firstInnerTypeTxt: String = {
+      val typeText = scType.canonicalText
+      typeText.substring(typeText.indexOf('[') + 1, typeText.length - 1)
+        .split(",S+").headOption.getOrElse("Any")
     }
-    val innerTypesTxt    : Seq[String] = innerTypes.map(_.canonicalText)
-    val firstInnerTypeTxt: String      = innerTypesTxt.headOption.getOrElse("Any")
   }
 }
 
@@ -88,17 +98,17 @@ trait FreeInjector extends SyntheticMembersInjector {
             }
 
             val opsObj = {
-              val typeAliasText = typeAlias.map(_.text).map { alias =>
+              val typeAliasText = typeAlias.map(_.getText).map { alias =>
                 val i = alias.indexOf("""Free[""") + 5
                 s"${alias.substring(0, i)}$absPath.${alias.substring(i, alias.length)}"
               }
               s"""
                  |object ops {
                  |  ${typeAliasText.getOrElse("")}
-                 |  ${nonOpsVal.map(_.text).mkString("\n")}
-                 |  ${opsVal.map(_.text).mkString("\n")}
-                 |  ${nonOpsFunc.map(_.text).mkString("\n")}
-                 |  ${opsFunc.map(_.text).mkString("\n")}
+                 |  ${nonOpsVal.map(_.getText).mkString("\n")}
+                 |  ${opsVal.map(_.getText).mkString("\n")}
+                 |  ${nonOpsFunc.map(_.getText).mkString("\n")}
+                 |  ${opsFunc.map(_.getText).mkString("\n")}
                  |}
               """.stripMargin
             }
@@ -112,8 +122,8 @@ trait FreeInjector extends SyntheticMembersInjector {
               }
               s"""
                  |object injectOps {
-                 |  ${nonOpsVal.map(_.text).mkString("\n")}
-                 |  ${nonOpsFunc.map(_.text).mkString("\n")}
+                 |  ${nonOpsVal.map(_.getText).mkString("\n")}
+                 |  ${nonOpsFunc.map(_.getText).mkString("\n")}
                  |  ${ops.mkString("\n")}
                  |  ${opsValToDef.mkString("\n")}
                  |}
@@ -129,9 +139,9 @@ trait FreeInjector extends SyntheticMembersInjector {
               }
               s"""
                  |class Injects[F[_]]$implicitInjectParam {
-                 |  ${nonOpsVal.map(_.text).mkString("\n")}
+                 |  ${nonOpsVal.map(_.getText).mkString("\n")}
                  |  ${opsVal2.mkString("\n")}
-                 |  ${nonOpsFunc.map(_.text).mkString("\n")}
+                 |  ${nonOpsFunc.map(_.getText).mkString("\n")}
                  |  ${ops.mkString("\n")}
                  |}
               """.stripMargin
