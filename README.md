@@ -50,29 +50,31 @@ Key-value store example from [cats website](http://typelevel.org/cats/datatypes/
       } yield ()
   }
 
-  import KVStore.ops._
-
-  def program: KVStoreF[Option[Int]] =
-    for {
-      _ <- put("wild-cats", 2)
-      _ <- update[Int]("wild-cats", _ + 12)
-      _ <- put("tame-cats", 5)
-      n <- get[Int]("wild-cats")
-    } yield n
-
-  val impureInterpreter = new KVStore.Interp[Id] {
-    val kvs = mutable.Map.empty[String, Any]
-    def get[T](key: String): Id[Option[T]] = {
-      println(s"get($key)")
-      kvs.get(key).map(_.asInstanceOf[T])
+  object Main extends App {
+    import KVStore.ops._
+  
+    def program: KVStoreF[Option[Int]] =
+      for {
+        _ <- put("wild-cats", 2)
+        _ <- update[Int]("wild-cats", _ + 12)
+        _ <- put("tame-cats", 5)
+        n <- get[Int]("wild-cats")
+      } yield n
+  
+    val impureInterpreter = new KVStore.Interp[Id] {
+      val kvs = mutable.Map.empty[String, Any]
+      def get[T](key: String): Id[Option[T]] = {
+        println(s"get($key)")
+        kvs.get(key).map(_.asInstanceOf[T])
+      }
+      def put[T](key: String, value: T): Id[Unit] = {
+        println(s"put($key, $value)")
+        kvs(key) = value
+      }
     }
-    def put[T](key: String, value: T): Id[Unit] = {
-      println(s"put($key, $value)")
-      kvs(key) = value
-    }
+    
+    impureInterpreter.run(program)
   }
-
-  impureInterpreter.run(program)
 ```
 Above example for scalaz [here](https://github.com/Thangiee/Freasy-Monad/blob/master/core/shared/src/test/scala/examples/scalaz/KVStore.scala).
 
