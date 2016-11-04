@@ -1,6 +1,6 @@
 onLoad in Global := ((s: State) => { "updateIdea" :: s}) compose (onLoad in Global).value
 
-crossScalaVersions in ThisBuild := Seq("2.11.8", "2.12.0")
+crossScalaVersions in ThisBuild := Seq("2.11.8", "2.12.0-RC2")
 
 lazy val commonSettings = Seq(
   organization := "com.thangiee",
@@ -47,12 +47,29 @@ lazy val core = crossProject
       )
     else Seq.empty
   )
-  .enablePlugins(ScalaJSPlugin)
   .jvmSettings()
   .jsSettings()
 
 lazy val coreJS = core.js
 lazy val coreJVM = core.jvm
+
+lazy val packageLocalCore = TaskKey[Unit]("package-local-core", "packageLocal for both core/JS and core/JVM")
+packageLocalCore := {
+  (publishLocal in coreJS).value
+  (publishLocal in coreJVM).value
+}
+
+lazy val publishCore = TaskKey[Unit]("publish-core", "Stage both core/JS and core/JVM for release")
+publishCore := {
+  (publish in coreJS).value
+  (publish in coreJVM).value
+}
+
+lazy val releaseCore = TaskKey[Unit]("release-core", "Release both core/JS and core/JVM to Bintray")
+releaseCore := {
+  (bintrayRelease in coreJS).value
+  (bintrayRelease in coreJVM).value
+}
 
 val pluginVer = "0.5.0"
 val pluginName = "freasy-monad-plugin"
