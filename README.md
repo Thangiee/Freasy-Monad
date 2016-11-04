@@ -5,13 +5,16 @@ and [scalaz/scalaz](https://github.com/scalaz/scalaz).
 It also integrate nicely with Intellij through a plugin to provide proper highlighting & code completion. 
 
 ##Getting started
+
+Freasy Monad is currently available for Scala 2.11.x and 2.12.0-RC2, and [Scala.js](http://www.scala-js.org/).
+
 If you are using `cats`, add the following to your build.sbt: 
 
 ```scala
 resolvers += Resolver.jcenterRepo
 libraryDependencies ++= Seq(
-  "com.thangiee" %% "freasy-monad" % "0.4.1",
-  "org.typelevel" %% "cats" % "0.7.2" // requires version 0.7.0+ 
+  "com.thangiee" %% "freasy-monad" % "0.5.0",
+  "org.typelevel" %% "cats" % "0.8.0" 
 )
 addCompilerPlugin("org.scalamacros" % "paradise" % "2.1.0" cross CrossVersion.full)
 ```
@@ -20,8 +23,8 @@ If you are using `scalaz`, add the following to your build.sbt:
 ```scala
 resolvers += Resolver.jcenterRepo
 libraryDependencies ++= Seq(
-  "com.thangiee" %% "freasy-monad" % "0.4.1",
-  "org.scalaz" %% "scalaz-core" % "7.2.6"
+  "com.thangiee" %% "freasy-monad" % "0.5.0",
+  "org.scalaz" %% "scalaz-core" % "7.2.7"
 )
 addCompilerPlugin("org.scalamacros" % "paradise" % "2.1.0" cross CrossVersion.full)
 ```
