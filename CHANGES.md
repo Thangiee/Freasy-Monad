@@ -1,3 +1,11 @@
+0.5.0 (2016/11/14)
+------------------
+* Add support for Scala 2.12 and Scala.js.
+* Fix plugin issues for older Intellij versions (
+  [#3](https://github.com/Thangiee/Freasy-Monad/issues/3) and
+  [#5](https://github.com/Thangiee/Freasy-Monad/issues/5)
+)
+
 0.4.1 (2016/10/10)
 ------------------
 * [#4](https://github.com/Thangiee/Freasy-Monad/issues/4): 
