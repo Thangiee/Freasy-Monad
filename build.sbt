@@ -2,8 +2,9 @@ onLoad in Global := ((s: State) => { "updateIdea" :: s}) compose (onLoad in Glob
 
 crossScalaVersions in ThisBuild := Seq("2.11.8", "2.12.0-RC2")
 
+val groupId = "com.github.thangiee"
 lazy val commonSettings = Seq(
-  organization := "com.thangiee",
+  organization := groupId,
   scalaVersion in ThisBuild := "2.11.8"
 )
 
@@ -35,17 +36,33 @@ lazy val core = crossProject
     addCompilerPlugin("org.scalamacros" % "paradise" % "2.1.0" cross CrossVersion.full)
   )
   .settings(
+    sonatypeProfileName := groupId,
     publishMavenStyle := true,
-    bintrayReleaseOnPublish in ThisBuild := false, //  1."sbt core/publish" stage artifacts first 2."sbt core/bintrayRelease" make artifacts public
-    licenses += ("MIT", url("http://opensource.org/licenses/MIT")),
-    bintrayVcsUrl := Some("https://github.com/Thangiee/Freasy-Monad"),
-    if (libVer.endsWith("-SNAPSHOT"))
-      Seq(
-        publishTo := Some("Artifactory Realm" at "http://oss.jfrog.org/artifactory/oss-snapshot-local"),
-        // Only setting the credentials file if it exists (#52)
-        credentials := List(Path.userHome / ".bintray" / ".artifactory").filter(_.exists).map(Credentials(_))
-      )
-    else Seq.empty
+    publishTo := {
+      val nexus = "https://oss.sonatype.org/"
+      if (isSnapshot.value) Some("snapshots" at nexus + "content/repositories/snapshots")
+      else                  Some("releases"  at nexus + "service/local/staging/deploy/maven2")
+    },
+    publishArtifact in Test := false,
+    pomExtra :=
+      <url>https://github.com/Thangiee/Freasy-Monad</url>
+        <licenses>
+          <license>
+            <name>MIT license</name>
+            <url>http://www.opensource.org/licenses/mit-license.php</url>
+          </license>
+        </licenses>
+        <scm>
+          <url>git://github.com/Thangiee/Freasy-Monad.git</url>
+          <connection>scm:git://github.com/Thangiee/Freasy-Monad.git</connection>
+        </scm>
+        <developers>
+          <developer>
+            <id>Thangiee</id>
+            <name>Thang Le</name>
+            <url>https://github.com/Thangiee</url>
+          </developer>
+        </developers>
   )
   .jvmSettings()
   .jsSettings()
@@ -53,23 +70,9 @@ lazy val core = crossProject
 lazy val coreJS = core.js
 lazy val coreJVM = core.jvm
 
-lazy val packageLocalCore = TaskKey[Unit]("package-local-core", "packageLocal for both core/JS and core/JVM")
-packageLocalCore := {
-  (publishLocal in coreJS).value
-  (publishLocal in coreJVM).value
-}
-
-lazy val publishCore = TaskKey[Unit]("publish-core", "Stage both core/JS and core/JVM for release")
-publishCore := {
-  (publish in coreJS).value
-  (publish in coreJVM).value
-}
-
-lazy val releaseCore = TaskKey[Unit]("release-core", "Release both core/JS and core/JVM to Bintray")
-releaseCore := {
-  (bintrayRelease in coreJS).value
-  (bintrayRelease in coreJVM).value
-}
+addCommandAlias("packageLocalCore", ";coreJS/publishLocal;coreJVM/publishLocal")
+addCommandAlias("publishCore", ";coreJS/publishSigned;coreJVM/publishSigned")
+addCommandAlias("releaseCore", s"sonatypeReleaseAll $groupId")
 
 val pluginVer = "0.5.0"
 val pluginName = "freasy-monad-plugin"
@@ -101,7 +104,6 @@ lazy val packagePlugin = TaskKey[File]("package-plugin", "Create plugin's zip fi
 
 packagePlugin in plugin := {
   val ideaJar = (assembly in plugin).value
-  val paths = ivyPaths.value
   val sources = Seq(ideaJar -> s"$pluginName/lib/${ideaJar.getName}")
   val out = plugin.base / "bin" / s"$pluginName-$pluginVer.zip"
   IO.zip(sources, out)

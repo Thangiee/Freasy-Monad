@@ -1,10 +1,30 @@
-0.5.0 (2016/11/14)
+0.5.0 (2016/11/06)
 ------------------
 * Add support for Scala 2.12 and Scala.js.
+* Update to Cats version `0.8.0`.
 * Fix plugin issues for older Intellij versions (
   [#3](https://github.com/Thangiee/Freasy-Monad/issues/3) and
   [#5](https://github.com/Thangiee/Freasy-Monad/issues/5)
 )
+
+Starting with version `0.5.0`, this project is now published to Sonatype. In addition, group id has been changed to `com.github.thangiee`.
+For example, to update from version `0.4.1` to `0.5.0`, change your build.sbt from this:
+```scala
+resolvers += Resolver.jcenterRepo
+libraryDependencies ++= Seq(
+  "com.thangiee" %% "freasy-monad" % "0.4.1",
+  "org.typelevel" %% "cats" % "0.7.2"
+)
+addCompilerPlugin("org.scalamacros" % "paradise" % "2.1.0" cross CrossVersion.full)
+```
+to the following:
+```scala
+libraryDependencies ++= Seq(
+  "com.github.thangiee" %% "freasy-monad" % "0.5.0",
+  "org.typelevel" %% "cats" % "0.8.0" 
+)
+addCompilerPlugin("org.scalamacros" % "paradise" % "2.1.0" cross CrossVersion.full)
+```
 
 0.4.1 (2016/10/10)
 ------------------

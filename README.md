@@ -11,9 +11,8 @@ Freasy Monad is currently available for Scala 2.11.x and 2.12.0-RC2, and [Scala.
 If you are using `cats`, add the following to your build.sbt: 
 
 ```scala
-resolvers += Resolver.jcenterRepo
 libraryDependencies ++= Seq(
-  "com.thangiee" %% "freasy-monad" % "0.5.0",
+  "com.github.thangiee" %% "freasy-monad" % "0.5.0",
   "org.typelevel" %% "cats" % "0.8.0" 
 )
 addCompilerPlugin("org.scalamacros" % "paradise" % "2.1.0" cross CrossVersion.full)
@@ -21,13 +20,14 @@ addCompilerPlugin("org.scalamacros" % "paradise" % "2.1.0" cross CrossVersion.fu
 
 If you are using `scalaz`, add the following to your build.sbt: 
 ```scala
-resolvers += Resolver.jcenterRepo
 libraryDependencies ++= Seq(
-  "com.thangiee" %% "freasy-monad" % "0.5.0",
+  "com.github.thangiee" %% "freasy-monad" % "0.5.0",
   "org.scalaz" %% "scalaz-core" % "7.2.7"
 )
 addCompilerPlugin("org.scalamacros" % "paradise" % "2.1.0" cross CrossVersion.full)
 ```
+
+Starting with version `0.5.0`, group ID has been changed from `com.thangiee` to `com.github.thangiee`.
 
 ##`@free` macro
 Key-value store example from [cats website](http://typelevel.org/cats/datatypes/freemonad.html) using `free` macro:
