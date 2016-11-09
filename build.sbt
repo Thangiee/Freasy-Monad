@@ -1,6 +1,6 @@
 onLoad in Global := ((s: State) => { "updateIdea" :: s}) compose (onLoad in Global).value
 
-crossScalaVersions in ThisBuild := Seq("2.11.8", "2.12.0-RC2")
+crossScalaVersions in ThisBuild := Seq("2.11.8", "2.12.0")
 
 val groupId = "com.github.thangiee"
 lazy val commonSettings = Seq(
@@ -28,8 +28,8 @@ lazy val core = crossProject
       "-unchecked"
     ),
     libraryDependencies ++= Seq(
-      "org.typelevel" %%% "cats" % "0.8.0" % "provided",
-      "org.scalaz" %%% "scalaz-core" % "7.2.6" % "provided",
+      "org.typelevel" %%% "cats" % "0.8.1" % "provided",
+      "org.scalaz" %%% "scalaz-core" % "7.2.7" % "provided",
       "org.scala-lang" % "scala-reflect" % "2.11.8",
       "org.scalatest" %%% "scalatest" % "3.0.0" % "test"
     ),

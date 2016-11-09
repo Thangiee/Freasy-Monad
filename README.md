@@ -6,14 +6,14 @@ It also integrate nicely with Intellij through a plugin to provide proper highli
 
 ##Getting started
 
-Freasy Monad is currently available for Scala 2.11.x and 2.12.0-RC2, and [Scala.js](http://www.scala-js.org/).
+Freasy Monad is currently available for Scala 2.11 and 2.12, and [Scala.js](http://www.scala-js.org/).
 
 If you are using `cats`, add the following to your build.sbt: 
 
 ```scala
 libraryDependencies ++= Seq(
   "com.github.thangiee" %% "freasy-monad" % "0.5.0",
-  "org.typelevel" %% "cats" % "0.8.0" 
+  "org.typelevel" %% "cats" % "0.8.1" 
 )
 addCompilerPlugin("org.scalamacros" % "paradise" % "2.1.0" cross CrossVersion.full)
 ```

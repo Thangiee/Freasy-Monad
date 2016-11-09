@@ -21,7 +21,7 @@ to the following:
 ```scala
 libraryDependencies ++= Seq(
   "com.github.thangiee" %% "freasy-monad" % "0.5.0",
-  "org.typelevel" %% "cats" % "0.8.0" 
+  "org.typelevel" %% "cats" % "0.8.1" 
 )
 addCompilerPlugin("org.scalamacros" % "paradise" % "2.1.0" cross CrossVersion.full)
 ```
