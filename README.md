@@ -123,7 +123,7 @@ During compile time, `KVStore` is expanded to something similar to:
           case GrammarADT.Get(key) => get(key)
         }
       }
-      def run[A](op: KVStoreF[A])(implicit m: Monad[M], r: RecursiveTailRecM[M]): M[A] = op.foldMap(interpreter)
+      def run[A](op: KVStoreF[A])(implicit m: Monad[M]): M[A] = op.foldMap(interpreter)
       def put[T](key: String, value: T): M[Unit]
       def get[T](key: String): M[Option[T]]
     }
