@@ -91,7 +91,7 @@ trait FreeInjector extends SyntheticMembersInjector {
             def Free(A: ScType): String = s"Free[F, ${A.firstInnerTypeTxt}]"
 
             val sealedTraitADT = {
-              val caseClasses = opsFunc.map { fn =>
+              val caseClasses = opsFunc.collect { case fn if fn.isAbstractMember =>
                 s"case class ${fn.name.capitalize}${fn.typeParamsTxt}${fn.paramsTxt} extends $sealedTraitName[${fn.returnTypeOrAny.firstInnerTypeTxt}]"
               }
               s"object $sealedTraitName { ${caseClasses.mkString("\n")} }"
