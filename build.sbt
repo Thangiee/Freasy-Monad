@@ -74,7 +74,7 @@ addCommandAlias("packageLocalCore", ";coreJS/publishLocal;coreJVM/publishLocal")
 addCommandAlias("publishCore", ";coreJS/publishSigned;coreJVM/publishSigned")
 addCommandAlias("releaseCore", s"sonatypeReleaseAll $groupId")
 
-val pluginVer = "0.5.0"
+val pluginVer = "0.5.1"
 val pluginName = "freasy-monad-plugin"
 lazy val plugin: Project = project
   .enablePlugins(SbtIdeaPlugin)
@@ -87,7 +87,7 @@ lazy val plugin: Project = project
     ideaExternalPlugins := Seq(IdeaPlugin.Zip("scala-plugin", url("https://plugins.jetbrains.com/plugin/download?pr=&updateId=29035"))),
     aggregate in updateIdea := false,
     assemblyExcludedJars in assembly := ideaFullJars.value,
-    ideaBuild := "163.6957.12"
+    ideaBuild := "163.7743.17"
   )
 
 lazy val ideaRunner: Project = project.in(file("ideaRunner"))
