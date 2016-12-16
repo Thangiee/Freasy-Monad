@@ -9,7 +9,7 @@ lazy val commonSettings = Seq(
 )
 
 val libVer = "0.5.0"
-lazy val core = crossProject
+lazy val core = project
   .settings(commonSettings)
   .settings(
     name := "freasy-monad",
@@ -28,10 +28,10 @@ lazy val core = crossProject
       "-unchecked"
     ),
     libraryDependencies ++= Seq(
-      "org.typelevel" %%% "cats" % "0.8.1" % "provided",
-      "org.scalaz" %%% "scalaz-core" % "7.2.7" % "provided",
+      "org.typelevel" %% "cats" % "0.8.1" % "provided",
+      "org.scalaz" %% "scalaz-core" % "7.2.7" % "provided",
       "org.scala-lang" % "scala-reflect" % "2.11.8",
-      "org.scalatest" %%% "scalatest" % "3.0.0" % "test"
+      "org.scalatest" %% "scalatest" % "3.0.0" % "test"
     ),
     addCompilerPlugin("org.scalamacros" % "paradise" % "2.1.0" cross CrossVersion.full)
   )
@@ -64,11 +64,11 @@ lazy val core = crossProject
           </developer>
         </developers>
   )
-  .jvmSettings()
-  .jsSettings()
+//  .jvmSettings()
+//  .jsSettings()
 
-lazy val coreJS = core.js
-lazy val coreJVM = core.jvm
+//lazy val coreJS = core.js
+//lazy val coreJVM = core.jvm
 
 addCommandAlias("packageLocalCore", ";coreJS/publishLocal;coreJVM/publishLocal")
 addCommandAlias("publishCore", ";coreJS/publishSigned;coreJVM/publishSigned")
