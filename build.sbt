@@ -7,7 +7,7 @@ lazy val commonSettings = Seq(
   organization := groupId,
   scalaVersion in ThisBuild := "2.11.8"
 )
-
+val nexus = "https://oss.sonatype.org/"
 val libVer = "0.5.0"
 lazy val core = project
   .settings(commonSettings)
@@ -25,15 +25,23 @@ lazy val core = project
       "-Ywarn-numeric-widen",
       "-Ywarn-unused",
       "-Ywarn-unused-import",
-      "-unchecked"
+      "-unchecked",
+      "-Xplugin-require:macroparadise"
     ),
+    resolvers += "snapshots" at nexus + "content/repositories/snapshots",
+    resolvers += Resolver.bintrayRepo("scalameta", "maven"),
     libraryDependencies ++= Seq(
       "org.typelevel" %% "cats" % "0.8.1" % "provided",
       "org.scalaz" %% "scalaz-core" % "7.2.7" % "provided",
       "org.scala-lang" % "scala-reflect" % "2.11.8",
-      "org.scalatest" %% "scalatest" % "3.0.0" % "test"
+      "org.scalatest" %% "scalatest" % "3.0.0" % "test",
+      "org.scalameta" %% "scalameta"   % "1.4.0"
+//      "org.scalameta" %% "scalameta" % "2.0.0-SNAPSHOT"
     ),
-    addCompilerPlugin("org.scalamacros" % "paradise" % "2.1.0" cross CrossVersion.full)
+    addCompilerPlugin("org.scalamacros" % "paradise" % "2.1.0" cross CrossVersion.full),
+    addCompilerPlugin("org.scalameta" % "paradise" % "3.0.0-beta4" cross CrossVersion.full)
+//    addCompilerPlugin("org.scalameta" % "paradise" % "4.+" cross CrossVersion.full)
+
   )
   .settings(
     sonatypeProfileName := groupId,
