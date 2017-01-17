@@ -58,7 +58,14 @@ object FreeUtils {
   import HasName.ops._
 
   case class ValDef(isVal: Boolean, name: Term.Name, tparams: Seq[Type.Param], paramss: Paramss, rt: Type, rhs: Option[Term]) {
-    val t"$outerType[..$innerType]" = rt
+    val outerType: Type = rt match {
+      case t"$outer[..$_]" => outer
+      case _ => t"Any"
+    }
+    val innerType: Seq[Type] = rt match {
+      case t"$_[..$inner]" => inner
+      case _ => Seq.empty
+    }
     val isDef: Boolean = !isVal
     def toVal: Defn.Val = q"val ${name.patTerm}: $rt = ${rhs.getOrElse(q"???")}"
     def toDef: Defn.Def = q"def $name[..$tparams](...$paramss): $rt = ${rhs.getOrElse(q"???")}"
@@ -97,8 +104,6 @@ object FreeUtils {
     if (m.isVal) m.copy(rhs = injOpCall(m.name))
     else         m.copy(rhs = injOpCall(m.name, typeName, m.tparams, m.paramss))
 
-  implicit class DefnOps(defn: Defn) {
-  }
 }
 
 class FreeImpl extends scala.annotation.StaticAnnotation {
@@ -142,10 +147,10 @@ class FreeImpl extends scala.annotation.StaticAnnotation {
 
         val (liftedOps: Seq[ValDef], liftedOpsRef: Seq[ValDef]) =
           absMemberOps.collect {
-            case m@ValDef(_, name, tparams, paramss, _, _) =>
+            case m@ValDef(isVal, name, tparams, paramss, _, _) =>
               val args = paramssToArgsFlatten(paramss)
               val op: ValDef = {
-                val rhs = if (args.isEmpty) q"Free.liftF(I.inj(${adt(name)}))" else q"Free.liftF(I.inj(${adt(name)}(..$args)))"
+                val rhs = if (isVal) q"Free.liftF(I.inj(${adt(name)}))" else q"Free.liftF(I.inj(${adt(name)}(..$args)))"
                 m.copy(tparams = F +: m.tparams, paramss = m.paramss :+ implicitInject, rt = t"Free[F, ..${m.innerType}]", rhs = rhs)
               }
               val opRef: ValDef =
@@ -157,13 +162,13 @@ class FreeImpl extends scala.annotation.StaticAnnotation {
 
         val (concreteOps: Seq[ValDef], concreteOpsRef: Seq[ValDef], concreteNonOps: Seq[ValDef], concreteNonOpsRef: Seq[ValDef]) = {
           val (ops, nonOps) = concreteMem.partition(m => sameAsAlias(m.outerType))
-
+          val allOps: Seq[ValDef] = liftedOps ++ ops
+          def isCallingOp(name: Term.Name) = allOps.exists(_.name.syntax == name.syntax)
           // append type param F to all call to methods that will be in injectOps Obj (to satisfy F[_]).
           def addFTransformer(term: Term): Term = {
-            val injectOpNames = liftedOps.map(_.name) ++ ops.map(_.name)
             term.transform {
-              case q"${name: Term.Name}[..$tp].$methName(..$args)" if injectOpNames.contains(name) => q"$name[F, ..$tp].$methName(..$args)"
-              case q"${name: Term.Name}[..$tp](..$args)"           if injectOpNames.contains(name) => q"$name[F, ..$tp](..$args)"
+              case q"${name: Term.Name}[..$tp].$methName(..$args)" if isCallingOp(name) => q"$name[F, ..$tp].$methName(..$args)"
+              case q"${name: Term.Name}[..$tp](..$args)"           if isCallingOp(name) => q"$name[F, ..$tp](..$args)"
             } match {
               case t: Term => t
               case t => abort(s"Failed transformation: $t")
@@ -180,7 +185,7 @@ class FreeImpl extends scala.annotation.StaticAnnotation {
           val opsRef = ops.map(m => mkInjOpCall(m, sealedTrait.name))
 
           // vals and defs that call other vals and defs in injectOps
-          val nonOpsRef = nonOps.map(m => mkInjOpCall(m, sealedTrait.name))
+          val nonOpsRef = nonOps.map(m => mkInjOpCall(m))
 
           (injectOps, opsRef, nonOps, nonOpsRef)
         }
