@@ -4,10 +4,11 @@ import freasymonad2.FreeUtils._
 
 import scala.collection.immutable.Seq
 import scala.meta.Ctor.Ref
-import scala.meta.Defn.{Def, Trait}
+import scala.meta.Defn.Trait
 import scala.meta.Pat.Var
 import scala.meta.Term.Name
 import scala.meta._
+import scala.language.implicitConversions
 
 object FreeUtils {
   type Params = Seq[Term.Param]
@@ -119,7 +120,9 @@ class FreeImpl extends scala.annotation.StaticAnnotation {
       case q"..$_ trait $tname[..$_] extends { ..$_ } with ..$_ { $_ => ..$stats }" =>
         val (alias: Defn.Type, freeS: Type.Name) =
           stats.collectFirst {
-            case alias@q"..$_ type $_[..$_] = Free[$s, $_]" => (alias, Type.Name(s.syntax.split('.').last))
+            case alias@q"..$_ type $_[..$_] = Free[$s, $_]" =>
+              val fixS =  Type.Name(s.syntax.split('.').last) //todo: bug report
+              (alias, fixS)
           }.getOrElse(abort("Require a type alias for Free[S, A]"))
 
         val sealedTrait: Trait =
@@ -190,6 +193,13 @@ class FreeImpl extends scala.annotation.StaticAnnotation {
           (injectOps, opsRef, nonOps, nonOpsRef)
         }
 
+        val imports =
+            q"""
+              import cats._
+              import cats.free._
+              import scala.language.higherKinds
+            """.stats
+
         val opsObj =
           q"""
             object ops {
@@ -223,8 +233,6 @@ class FreeImpl extends scala.annotation.StaticAnnotation {
            """
         }
 
-        val methodsToBeImpl = absMemberOps.map(m => m.copy(rt = t"M[..${m.innerType}]").toAbsExpr)
-
         val genCaseClassesAndObjADT = {
           val caseClasses = absMemberOps.map { m =>
             val ext = template"${sealedTrait.ref}[..${m.innerType}]"
@@ -242,15 +250,14 @@ class FreeImpl extends scala.annotation.StaticAnnotation {
             if (m.isDef) p"case ${adt(m.name)}(..$binds) => $rhs"
             else         p"case ${adt(m.name)} => ${m.name}"
           }
+          val op = Type.Name(s"${tname.value}.ops.${alias.name.value}[A]") // full path; better way to do this?
+          val methodsToBeImpl = absMemberOps.map(m => m.copy(rt = t"M[..${m.innerType}]").toAbsDef)
           q"""
-            trait Interp[M[_]] {
-              import ops._
-              val interpreter = new (${sealedTrait.name} ~> M) {
-                def apply[A](fa: ${sealedTrait.name}[A]): M[A] = fa match {
-                  ..case $cases
-                }
+            trait Interp[M[_]] extends (${tname.termName}.${sealedTrait.name} ~> M) {
+              def apply[A](fa: ${tname.termName}.${sealedTrait.name}[A]): M[A] = fa match {
+                ..case $cases
               }
-              def run[A](op: ${alias.name}[A])(implicit m: Monad[M]): M[A] = op.foldMap(interpreter)
+              def run[A](op: $op)(implicit m: cats.Monad[M]): M[A] = op.foldMap(this)
               ..$methodsToBeImpl
             }
            """
@@ -259,9 +266,7 @@ class FreeImpl extends scala.annotation.StaticAnnotation {
         val genCompanionObj =
           q"""
             object ${tname.termName} {
-              import cats._
-              import cats.free._
-              import scala.language.higherKinds
+              ..$imports
               $sealedTrait
               $genCaseClassesAndObjADT
               $opsObj
@@ -270,6 +275,7 @@ class FreeImpl extends scala.annotation.StaticAnnotation {
               $interp
             }
           """
+
         Term.Block(Seq(q"trait $tname", genCompanionObj))
       case _ =>
         abort("@free must annotate an trait.")
