@@ -29,6 +29,7 @@ object FreeUtils {
     def ref(a: A): Ref.Name = Ctor.Ref.Name(unlift(a))
     def patTerm(a: A): Var.Term = Pat.Var.Term(termName(a))
     def termArg(a: A): Term.Arg = termName(a)
+    def ===(a: A, tpe: Type): Boolean = tpe.syntax.startsWith(unlift(a))
   }
 
   object HasName {
@@ -58,7 +59,7 @@ object FreeUtils {
 
   import HasName.ops._
 
-  case class ValDef(isVal: Boolean, name: Term.Name, tparams: Seq[Type.Param], paramss: Paramss, rt: Type, rhs: Option[Term]) {
+  case class ValDef(isVal: Boolean, name: Term.Name, tparams: Seq[Type.Param], paramss: Paramss, rt: Type, rhs: Option[Term], mods: Seq[Mod] = Nil, pos: Position = Position.None) {
     val outerType: Type = rt match {
       case t"$outer[..$_]" => outer
       case _ => t"Any"
@@ -77,16 +78,16 @@ object FreeUtils {
   }
   object ValDef {
     def apply(d: Defn.Def): ValDef = d match {
-      case q"..$_ def $name[..$tparams](...$paramss): $rt = $rhs" => ValDef(false, name, tparams, paramss, rt.getOrElse(t"Any"), rhs)
+      case q"..$mods def $name[..$tparams](...$paramss): $rt = $rhs" => ValDef(false, name, tparams, paramss, rt.getOrElse(t"Any"), rhs, mods, d.pos)
     }
     def apply(v: Defn.Val): ValDef = v match {
-      case q"..$_ val $name: ${rt} = $rhs" => ValDef(true, Term.Name(name.syntax), Nil, Nil, rt.getOrElse(t"Any"), rhs)
+      case q"..$mods val $name: ${rt} = $rhs" => ValDef(true, Term.Name(name.syntax), Nil, Nil, rt.getOrElse(t"Any"), rhs, mods, v.pos)
     }
     def apply(d: Decl.Def): ValDef = d match {
-      case q"..$_ def $name[..$tparams](...$paramss): $rt" => ValDef(false, name, tparams, paramss, rt, None)
+      case q"..$mods def $name[..$tparams](...$paramss): $rt" => ValDef(false, name, tparams, paramss, rt, None, mods, d.pos)
     }
     def apply(v: Decl.Val): ValDef = v match {
-      case q"..$_ val $name: $rt" => ValDef(true, name.name, Nil, Nil, rt, None)
+      case q"..$mods val $name: $rt" => ValDef(true, name.name, Nil, Nil, rt, None, mods, v.pos)
     }
   }
 
@@ -105,14 +106,22 @@ object FreeUtils {
     if (m.isVal) m.copy(rhs = injOpCall(m.name))
     else         m.copy(rhs = injOpCall(m.name, typeName, m.tparams, m.paramss))
 
+  def checkConstraint(members: Seq[ValDef], aliasName: Type.Name): Unit = {
+    members.foreach {
+      case m if m.rt.syntax == "Any" =>
+        abort(s"Define the return type for:\n ${m.toAbsExpr.syntax}")
+      case m if m.mods.map(_.syntax).exists(mod => mod == "private" || mod == "protected") =>
+        abort(s"try using access modifier 'package-private' for:\n ${m.toAbsExpr.syntax}")
+      case m@ValDef(_, _, _, _, _, None, _, _) if !(aliasName === m.outerType) =>
+        abort(s"Abstract '${m.toAbsExpr.syntax}' needs to have return type ${aliasName.value}[${m.innerType.mkString(", ")}], otherwise, make it non-abstract.")
+      case _ =>
+    }
+  }
+
 }
 
 class FreeImpl extends scala.annotation.StaticAnnotation {
 
-//
-//  def checkConstraint(stats: Seq[Stat]): Unit = {
-//
-//  }
   inline def apply(defn: Any): Any = meta {
     import HasName.ops._
 
@@ -136,21 +145,23 @@ class FreeImpl extends scala.annotation.StaticAnnotation {
         val implicitInject = Seq(param"implicit I: free.Inject[${sealedTrait.name.tpe}, F]")
         val F: Type.Param = tparam"F[_]"
 
-        def sameAsAlias: Type => Boolean = tpe => tpe.syntax.startsWith(alias.name.syntax)
-
         val member: Seq[ValDef] = stats.collect {
           case d @ Decl.Def(_, _, _, _, _)    => ValDef(d)
-          case d @ Defn.Def(_, _, _, _, _, _) => ValDef(d)
+          case d @ Defn.Def(_, _, _, _, _, _) => ValDef(d).copy(pos = d.pos)
           case v @ Decl.Val(_, _, _)          => ValDef(v)
           case v @ Defn.Val(_, _, _, _)       => ValDef(v)
+          case v @ Decl.Var(_, _, _)          => abort(v.pos, s"var is not allow in @free trait ${tname.value}")
+          case v @ Defn.Var(_, _, _, _)       => abort(v.pos, s"var is not allow in @free trait ${tname.value}")
         }
 
+        checkConstraint(member, alias.name)
+
         val (concreteMem, absMem) = member.partition(_.rhs.isDefined)
-        val absMemberOps = absMem.filter(m => sameAsAlias(m.outerType))
+        val absMemberOps = absMem.filter(alias.name === _.outerType)
 
         val (liftedOps: Seq[ValDef], liftedOpsRef: Seq[ValDef]) =
           absMemberOps.collect {
-            case m@ValDef(isVal, name, tparams, paramss, _, _) =>
+            case m@ValDef(isVal, name, tparams, paramss, _, _, _, _) =>
               val args = paramssToArgsFlatten(paramss)
               val op: ValDef = {
                 val rhs = if (isVal) q"Free.liftF(I.inj(${adt(name)}))" else q"Free.liftF(I.inj(${adt(name)}(..$args)))"
@@ -164,7 +175,7 @@ class FreeImpl extends scala.annotation.StaticAnnotation {
           }.unzip
 
         val (concreteOps: Seq[ValDef], concreteOpsRef: Seq[ValDef], concreteNonOps: Seq[ValDef], concreteNonOpsRef: Seq[ValDef]) = {
-          val (ops, nonOps) = concreteMem.partition(m => sameAsAlias(m.outerType))
+          val (ops, nonOps) = concreteMem.partition(alias.name === _.outerType)
           val allOps: Seq[ValDef] = liftedOps ++ ops
           def isCallingOp(name: Term.Name) = allOps.exists(_.name.syntax == name.syntax)
           // append type param F to all call to methods that will be in injectOps Obj (to satisfy F[_]).
@@ -180,7 +191,7 @@ class FreeImpl extends scala.annotation.StaticAnnotation {
 
           // defs that contain the real implementation
           val injectOps = ops.collect {
-            case m@ValDef(_, _, tparams, paramss, _, Some(rhs)) =>
+            case m@ValDef(_, _, tparams, paramss, _, Some(rhs), _, _) =>
               m.copy(tparams = F +: tparams, paramss = paramss :+ implicitInject, rt = t"Free[F, ..${m.innerType}]", rhs = addFTransformer(rhs))
           }
 
