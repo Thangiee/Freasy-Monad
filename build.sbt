@@ -1,19 +1,24 @@
-onLoad in Global := ((s: State) => { "updateIdea" :: s}) compose (onLoad in Global).value
-
-crossScalaVersions in ThisBuild := Seq("2.11.8", "2.12.0")
+//crossScalaVersions in ThisBuild := Seq("2.11.8", "2.12.1") // meta is currently only for 2.11
+scalaVersion in ThisBuild := "2.11.8"
 
 val groupId = "com.github.thangiee"
-lazy val commonSettings = Seq(
-  organization := groupId,
-  scalaVersion in ThisBuild := "2.11.8"
-)
-val nexus = "https://oss.sonatype.org/"
-val libVer = "0.5.0"
-lazy val core = project
-  .settings(commonSettings)
+name := "freasy-monad"
+organization := groupId
+
+lazy val root = project.in(file("."))
+  .aggregate(js, jvm)
   .settings(
-    name := "freasy-monad",
-    version := libVer,
+    publish := {},
+    publishLocal := {}
+  )
+
+val nexus = "https://oss.sonatype.org/"
+
+lazy val shared = crossProject.in(file("."))
+  .settings(
+    name := "shared",
+    version := "0.1-SNAPSHOT",
+    version := "0.5.0",
     scalacOptions ++= Seq(
       "-feature",
       "-encoding", "UTF-8",
@@ -23,27 +28,21 @@ lazy val core = project
       "-Yno-adapted-args",
       "-Ywarn-dead-code",
       "-Ywarn-numeric-widen",
-      "-Ywarn-unused",
       "-Ywarn-unused-import",
       "-unchecked",
       "-Xplugin-require:macroparadise"
     ),
     resolvers += "snapshots" at nexus + "content/repositories/snapshots",
-    resolvers += Resolver.bintrayRepo("scalameta", "maven"),
     libraryDependencies ++= Seq(
       "org.typelevel" %% "cats" % "0.8.1" % "provided",
       "org.scalaz" %% "scalaz-core" % "7.2.7" % "provided",
       "org.scala-lang" % "scala-reflect" % "2.11.8",
       "org.scalatest" %% "scalatest" % "3.0.0" % "test",
+      "com.github.mpilquist" %% "simulacrum" % "0.10.0",
       "org.scalameta" %% "scalameta"   % "1.4.0"
-//      "org.scalameta" %% "scalameta" % "2.0.0-SNAPSHOT"
     ),
     addCompilerPlugin("org.scalamacros" % "paradise" % "2.1.0" cross CrossVersion.full),
-    addCompilerPlugin("org.scalameta" % "paradise" % "3.0.0-beta4" cross CrossVersion.full)
-//    addCompilerPlugin("org.scalameta" % "paradise" % "4.+" cross CrossVersion.full)
-
-  )
-  .settings(
+    addCompilerPlugin("org.scalameta" % "paradise" % "3.0.0-beta4" cross CrossVersion.full),
     sonatypeProfileName := groupId,
     publishMavenStyle := true,
     publishTo := {
@@ -72,48 +71,12 @@ lazy val core = project
           </developer>
         </developers>
   )
-//  .jvmSettings()
-//  .jsSettings()
+  .jvmSettings()
+  .jsSettings()
 
-//lazy val coreJS = core.js
-//lazy val coreJVM = core.jvm
+lazy val jvm = shared.jvm
+lazy val js = shared.js
 
 addCommandAlias("packageLocalCore", ";coreJS/publishLocal;coreJVM/publishLocal")
 addCommandAlias("publishCore", ";coreJS/publishSigned;coreJVM/publishSigned")
 addCommandAlias("releaseCore", s"sonatypeReleaseAll $groupId")
-
-val pluginVer = "0.5.1"
-val pluginName = "freasy-monad-plugin"
-lazy val plugin: Project = project
-  .enablePlugins(SbtIdeaPlugin)
-  .settings(commonSettings)
-  .settings(
-    name := pluginName,
-    version := pluginVer,
-    assemblyOption in assembly := (assemblyOption in assembly).value.copy(includeScala = false),
-    ideaInternalPlugins := Seq(),
-    ideaExternalPlugins := Seq(IdeaPlugin.Zip("scala-plugin", url("https://plugins.jetbrains.com/plugin/download?pr=&updateId=29035"))),
-    aggregate in updateIdea := false,
-    assemblyExcludedJars in assembly := ideaFullJars.value,
-    ideaBuild := "163.7743.17"
-  )
-
-lazy val ideaRunner: Project = project.in(file("ideaRunner"))
-  .dependsOn(plugin % Provided)
-  .settings(commonSettings)
-  .settings(
-    name := "ideaRunner",
-    autoScalaLibrary := false,
-    unmanagedJars in Compile := ideaMainJars.in(plugin).value,
-    unmanagedJars in Compile += file(System.getProperty("java.home")).getParentFile / "lib" / "tools.jar"
-  )
-
-lazy val packagePlugin = TaskKey[File]("package-plugin", "Create plugin's zip file ready to load into IDEA")
-
-packagePlugin in plugin := {
-  val ideaJar = (assembly in plugin).value
-  val sources = Seq(ideaJar -> s"$pluginName/lib/${ideaJar.getName}")
-  val out = plugin.base / "bin" / s"$pluginName-$pluginVer.zip"
-  IO.zip(sources, out)
-  out
-}
