@@ -1,8 +1,8 @@
 package examples.cats
 
-import cats.data.Coproduct
-import cats.free.Free
-import cats.{Id, ~>}
+import cats.data._
+import cats.free._
+import cats._
 import freasymonad.cats.free
 
 import scala.collection.mutable.ListBuffer
@@ -53,7 +53,7 @@ object ComposeFreeMonads extends App {
     } yield ()
   }
 
-  val consoleCats = new Interact.Interp[Id] {
+  val consoleCats: Interact.Interp[Id] = new Interact.Interp[Id] {
     def ask(prompt: String): Id[String] = {
       println(prompt)
       StdIn.readLine()
@@ -61,13 +61,13 @@ object ComposeFreeMonads extends App {
     def tell(msg: String): Id[Unit] = println(msg)
   }
 
-  val inMemoryDatasource = new DataSource.Interp[Id] {
+  val inMemoryDatasource: DataSource.Interp[Id] = new DataSource.Interp[Id] {
     private[this] val memDataSet = new ListBuffer[String]
     def addCat(a: String): Id[Unit] = memDataSet.append(a)
     def getAllCats: Id[List[String]] = memDataSet.toList
   }
 
-  val interpreter: CatsApp ~> Id = inMemoryDatasource.interpreter or consoleCats.interpreter
+  val interpreter: CatsApp ~> Id = inMemoryDatasource or consoleCats
 
   program1.foldMap(interpreter)
   program2.foldMap(interpreter)

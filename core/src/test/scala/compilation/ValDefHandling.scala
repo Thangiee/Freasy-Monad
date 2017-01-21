@@ -19,7 +19,7 @@ object ValDefHandling extends App {
     def foo[T](key: String): KVStoreF[Option[T]] =
       for {
         n <- get[T](key)
-        _ = someDef(1)
+//        _ = someDef(1) https://github.com/scalameta/paradise/issues/146
       } yield n
 
     val someKey: String = "key123"

@@ -53,6 +53,7 @@ object Main extends App {
   val resId: Id[Option[Int]] = idInterpreter.run(program)
 
   import cats.implicits.catsStdInstancesForFuture
+
   import scala.concurrent.ExecutionContext.Implicits.global
 
   val futureInterpreter = new KVStore.Interp[Future] {

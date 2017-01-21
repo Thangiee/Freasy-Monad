@@ -76,7 +76,7 @@ object ComposeFreeMonads extends App {
       }
   }
 
-  val interpreter = inMemoryDatasource.interpreter or consoleCats.interpreter
+  val interpreter = inMemoryDatasource or consoleCats
 
   program1.foldMap(interpreter)
   program2.foldMap(interpreter)

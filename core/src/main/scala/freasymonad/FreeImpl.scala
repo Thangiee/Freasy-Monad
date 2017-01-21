@@ -1,252 +1,291 @@
 package freasymonad
 
-import scala.reflect.api.Trees
-import scala.reflect.macros.blackbox
+import freasymonad.FreeUtils._
 
-private[freasymonad] abstract class FreeImpl(val c: blackbox.Context) {
-  import c.universe._
+import scala.collection.immutable.Seq
+import scala.meta.Ctor.Ref
+import scala.meta.Defn.Trait
+import scala.meta.Pat.Var
+import scala.meta.Term.Name
+import scala.meta._
+import scala.language.implicitConversions
 
-  // imports for cats or scalaz
-  def imports: Tree
-
-  def abort(msg: String) = c.abort(c.enclosingPosition, msg)
-
-  // https://issues.scala-lang.org/browse/SI-8771
-  def fixSI88771(paramss: Any) = paramss.asInstanceOf[List[List[ValDef]]].map(_.map(_.duplicate))
-
-  def replaceContainerType(tree: Trees#Tree, newType: TypeName): AppliedTypeTree = tree match {
-    case AppliedTypeTree(_, inner) => AppliedTypeTree(Ident(newType), inner)
-    case other => abort(s"Not an AppliedTypeTree: ${showRaw(other)}")
-  }
-
-  def adt(sealedTrait: ClassDef, name: Name) = q"${sealedTrait.name.toTermName}.${TermName(name.toString.capitalize)}"
-
-  type Paramss = List[List[ValDef]]
-  def paramssToArgs(paramss: Paramss): List[List[TermName]] =
-    paramss.filter(_.nonEmpty).map(_.collect { case t@ValDef(mods, name, _, _) => name })
+private[freasymonad] object FreeUtils {
+  type Params = Seq[Term.Param]
+  type Paramss = Seq[Params]
 
   // ex: convert (a: A)(b: B) to (a, b)
-  def paramssToArgsFlatten(paramss: Paramss): List[TermName] = paramss.flatten.collect { case t@ValDef(mods, name, _, _)  => name }
+  val paramssToArgsFlatten: Paramss => Seq[Term.Arg] =
+    paramss => paramss.flatten.map(p => Term.Name(p.name.value))
 
-  // remove () if no args
-  def methodCallFmt(method: c.universe.Tree, args: Seq[Seq[TermName]]) = if (args.flatten.isEmpty) method else q"$method(...$args)"
+  // todo: implement without out old macros
+  import simulacrum._
+  @typeclass trait HasName[A] {
+    def lift(s: String): A
+    def unlift(a: A): String
+    def termName(a: A): Term.Name = Term.Name(unlift(a))
+    def typeName(a: A): Type.Name = Type.Name(unlift(a))
+    def update(a: A, f: String => String): A = lift(f(unlift(a)))
+    def capitalize(a: A): A = update(a, _.capitalize)
+    def ref(a: A): Ref.Name = Ctor.Ref.Name(unlift(a))
+    def patTerm(a: A): Var.Term = Pat.Var.Term(termName(a))
+    def termArg(a: A): Term.Arg = termName(a)
+    def ===(a: A, tpe: Type): Boolean = tpe.syntax.startsWith(unlift(a))
+  }
 
-  def impl(annottees: c.Expr[Any]*): c.Expr[Any] = {
-    val trees = annottees.map(_.tree).toList
+  object HasName {
+    implicit val typeNameInst = new HasName[Type.Name] {
+      def unlift(a: Type.Name): String = a.value
+      def lift(s: String): Type.Name = Type.Name(s)
+    }
+    implicit val termNameInst = new HasName[Term.Name] {
+      def unlift(a: Term.Name): String = a.value
+      def lift(s: String): Term.Name = Term.Name(s)
+    }
+    implicit val termParamNameInst = new HasName[Term.Param.Name] {
+      def unlift(a: Term.Param.Name): String = a.value
+      def lift(s: String): Term.Param.Name = Name(s)
+    }
+    implicit val paramNameInst = new HasName[Type.Param.Name] {
+      def unlift(a: Type.Param.Name): String = a.value
+      def lift(s: String): Type.Param.Name = Type.Name(s)
+    }
+    implicit val traitInst = new HasName[Defn.Trait] {
+      def unlift(a: Defn.Trait): String = a.name.value
+      def lift(s: String): Defn.Trait = abort("Unsupported op for Defn.Trait")
+    }
+  }
 
-    trees.headOption match {
-      case Some(q"$_ trait ${tpname:TypeName}[..$_] extends { ..$earlydefns } with ..$parents { $self => ..$stats }") =>
-        val (typeAlias: TypeDef, freeSType) =
-          stats.collectFirst { case typeDef @ q"type $_[..$_] = Free[${Ident(s)}, $_]" => (typeDef, s) }
-            .getOrElse(abort("Require a type alias for Free[S, A]"))
+  implicit def liftToSome[A](a: A): Some[A] = Some(a)
 
-        val sealedTrait: ClassDef = stats.collectFirst {
-          case cd @ q"sealed trait $name[..$_]" if name == freeSType => cd.asInstanceOf[ClassDef]
-        }.getOrElse(abort(s"Require seal trait $freeSType[A]"))
+  import HasName.ops._
 
-        // create param: (implicit I: free.Inject[?, F])
-        val implicitInject = List(ValDef(Modifiers(Flag.IMPLICIT | Flag.PARAM), TermName("I"), tq"Inject[${sealedTrait.name.toTypeName}, F]", EmptyTree))
-        val F = q"type F[_]" // higherKind F[_]
+  case class ValDef(isVal: Boolean, name: Term.Name, tparams: Seq[Type.Param], paramss: Paramss, rt: Type, rhs: Option[Term], mods: Seq[Mod] = Nil, pos: Position = Position.None) {
+    val outerType: Type = rt match {
+      case t"$outer[..$_]" => outer
+      case _ => t"Any"
+    }
+    val innerType: Seq[Type] = rt match {
+      case t"$_[..$inner]" => inner
+      case _ => Seq.empty
+    }
+    val isDef: Boolean = !isVal
+    def toVal: Defn.Val = q"val ${name.patTerm}: $rt = ${rhs.getOrElse(q"???")}"
+    def toDef: Defn.Def = q"def $name[..$tparams](...$paramss): $rt = ${rhs.getOrElse(q"???")}"
+    def toExpr: Defn = if (isVal) toVal else toDef
+    def toAbsVal: Decl.Val = q"val ${name.patTerm}: $rt"
+    def toAbsDef: Decl.Def = q"def $name[..$tparams](...$paramss): $rt"
+    def toAbsExpr: Decl = if (isVal) toAbsVal else toAbsDef
+  }
+  object ValDef {
+    def apply(d: Defn.Def): ValDef = d match {
+      case q"..$mods def $name[..$tparams](...$paramss): $rt = $rhs" => ValDef(false, name, tparams, paramss, rt.getOrElse(t"Any"), rhs, mods, d.pos)
+    }
+    def apply(v: Defn.Val): ValDef = v match {
+      case q"..$mods val $name: ${rt} = $rhs" => ValDef(true, Term.Name(name.syntax), Nil, Nil, rt.getOrElse(t"Any"), rhs, mods, v.pos)
+    }
+    def apply(d: Decl.Def): ValDef = d match {
+      case q"..$mods def $name[..$tparams](...$paramss): $rt" => ValDef(false, name, tparams, paramss, rt, None, mods, d.pos)
+    }
+    def apply(v: Decl.Val): ValDef = v match {
+      case q"..$mods val $name: $rt" => ValDef(true, name.name, Nil, Nil, rt, None, mods, v.pos)
+    }
+  }
 
-        def isReturnTypeOfTypeAlias(rt: Tree): Boolean = rt match {
-          case AppliedTypeTree(Ident(name), _)  => name == typeAlias.name
-          case _ => false
+  def injOpCall(name: Term.Name, typeName: Option[Type.Name] = None, tparams: Seq[Type.Param] = Nil, paramss: Paramss = Nil): Term = {
+    val tNames = tparams.map(_.name.typeName)
+    val tp = typeName.map(_ +: tNames).getOrElse(tNames)
+    val args = paramss.map(_.map(_.name.termArg))
+    if (tp.isEmpty) {
+      if (paramss.isEmpty) q"injectOps.$name" else q"injectOps.$name(...$args)"
+    } else {
+      if (paramss.isEmpty) q"injectOps.$name[..$tp]" else q"injectOps.$name[..$tp](...$args)"
+    }
+  }
+
+  def mkInjOpCall(m: ValDef, typeName: Option[Type.Name] = None): ValDef =
+    if (m.isVal) m.copy(rhs = injOpCall(m.name))
+    else         m.copy(rhs = injOpCall(m.name, typeName, m.tparams, m.paramss))
+
+  def checkConstraint(members: Seq[ValDef], aliasName: Type.Name): Unit = {
+    members.foreach {
+      case m if m.rt.syntax == "Any" =>
+        abort(s"Define the return type for:\n ${m.toAbsExpr.syntax}")
+      case m if m.mods.map(_.syntax).exists(mod => mod == "private" || mod == "protected") =>
+        abort(s"try using access modifier 'package-private' for:\n ${m.toAbsExpr.syntax}")
+      case m@ValDef(_, _, _, _, _, None, _, _) if !(aliasName === m.outerType) =>
+        abort(s"Abstract '${m.toAbsExpr.syntax}' needs to have return type ${aliasName.value}[${m.innerType.mkString(", ")}], otherwise, make it non-abstract.")
+      case _ =>
+    }
+  }
+
+}
+
+private[freasymonad] object FreeImpl {
+
+  def apply(defn: Tree, root: String, imports: Seq[Stat]): Term.Block = {
+    import HasName.ops._
+
+    defn match {
+      case q"..$_ trait $tname[..$_] extends { ..$_ } with ..$_ { $_ => ..$stats }" =>
+        val (alias: Defn.Type, freeS: Type.Name) =
+          stats.collectFirst {
+            case alias@q"..$_ type $_[..$_] = Free[$s, $_]" =>
+              val fixS =  Type.Name(s.syntax.split('.').last) //todo: bug report
+              (alias, fixS)
+          }.getOrElse(abort("Require a type alias for Free[S, A]"))
+
+        val sealedTrait: Trait =
+          stats.collectFirst {
+            case t@Defn.Trait(_, name, _, _, _) if name.value == freeS.value => t
+          }.getOrElse(abort(s"Require seal trait $freeS[A]"))
+
+        val adt: (Term.Name) => Term.Select =
+          name => q"${sealedTrait.termName}.${name.capitalize}"
+
+        val implicitInject = Seq(param"implicit I: Inject[${sealedTrait.name.tpe}, F]")
+        val F: Type.Param = tparam"F[_]"
+
+        val members: Seq[ValDef] = stats.collect {
+          case d @ Decl.Def(_, _, _, _, _)    => ValDef(d)
+          case d @ Defn.Def(_, _, _, _, _, _) => ValDef(d).copy(pos = d.pos)
+          case v @ Decl.Val(_, _, _)          => ValDef(v)
+          case v @ Defn.Val(_, _, _, _)       => ValDef(v)
+          case v @ Decl.Var(_, _, _)          => abort(v.pos, s"var is not allow in @free trait ${tname.value}")
+          case v @ Defn.Var(_, _, _, _)       => abort(v.pos, s"var is not allow in @free trait ${tname.value}")
         }
 
-        // check some constraints that will result in a compiler error
-        stats.foreach {
-          case x:ValOrDefDef if x.mods.hasFlag(Flag.PRIVATE|Flag.PROTECTED) => c.abort(x.pos, "try using access modifier: package-private")
-          case v @ ValDef(_, _, rt: TypeTree, _)       => c.abort(v.pos, s"Define the return type for:") // requires explicit return type
-          case d @ DefDef(_, _, _, _, rt: TypeTree, _) => c.abort(d.pos, s"Define the return type for:") // requires explicit return type
-          case v @ ValDef(mods, _, rt, _) if mods.hasFlag(Flag.MUTABLE) => c.abort(v.pos, s"var is not allow in @free trait $tpname")
-          case v @ ValDef(_, _, rt, EmptyTree)  =>
-            if (!isReturnTypeOfTypeAlias(rt)) c.abort(v.pos, s"Abstract val needs to have return type ${typeAlias.name}[...], otherwise, make it non-abstract.")
-          case d @ DefDef(_, _, _, _, rt, EmptyTree) =>
-            if (!isReturnTypeOfTypeAlias(rt)) c.abort(d.pos, s"Abstract def needs to have return type ${typeAlias.name}[...], otherwise, make it non-abstract.")
-          case _ => // no issue
-        }
+        checkConstraint(members, alias.name)
 
-        val absValsDefsOps: Seq[ValOrDefDef] = stats.collect {
-          case m @ DefDef(_, _, _, _, AppliedTypeTree(Ident(typ), _), EmptyTree) if typ == typeAlias.name => m
-          case v @ ValDef(_, _, AppliedTypeTree(Ident(typ), _), EmptyTree) if typ == typeAlias.name => v
-        }
+        val (concreteMem, absMem) = members.partition(_.rhs.isDefined)
+        val absMemberOps = absMem.filter(alias.name === _.outerType)
 
-        // --------------------------------------------------------------------------------
-        // vals name with op(s) means having return type matching the defined typeAlias.
-        // And vise versa, nonOp(s) means having different return type than the typeAlias.
-        // --------------------------------------------------------------------------------
-
-        val (liftedOps:Seq[DefDef], liftedOpsRef:Seq[ValOrDefDef]) = absValsDefsOps.map {
-          case DefDef(_, name, tparams, paramss, rt@AppliedTypeTree(_, innerType), _) =>
-            val op = {
+        val (liftedOps: Seq[ValDef], liftedOpsRef: Seq[ValDef]) =
+          absMemberOps.collect {
+            case m@ValDef(isVal, name, tparams, paramss, _, _, _, _) =>
               val args = paramssToArgsFlatten(paramss)
-              val rhs = q"Free.liftF(I.inj(${adt(sealedTrait, name)}(..$args)))"
-              val params = (if (paramss.isEmpty) List.empty else paramss) :+ implicitInject
-              q"def $name[..${F +: tparams}](...$params): Free[F, ..$innerType] = $rhs".asInstanceOf[DefDef]
-            }
-            val opRef = {
-              val args = paramssToArgs(paramss)
-              val rhs = methodCallFmt(q"injectOps.$name[..${sealedTrait.name +: tparams.map(_.name)}]", args)
-              DefDef(Modifiers(), name, tparams, paramss, rt, rhs)
-            }
-            (op, opRef)
-          case ValDef(_, name, rt@AppliedTypeTree(_, innerType), rhs) =>
-            val op = {
-              val rhs = q"Free.liftF(I.inj(${adt(sealedTrait, name)}))"
-              q"def $name[$F](..$implicitInject): Free[F, ..$innerType] = $rhs".asInstanceOf[DefDef]
-            }
-            val opRef = ValDef(Modifiers(), name, rt, q"injectOps.$name[${sealedTrait.name}]")
-            (op, opRef)
-        }.unzip
+              val op: ValDef = {
+                val rhs = if (isVal) q"Free.liftF(I.inj(${adt(name)}))" else q"Free.liftF(I.inj(${adt(name)}(..$args)))"
+                m.copy(tparams = F +: m.tparams, paramss = m.paramss :+ implicitInject, rt = t"Free[F, ..${m.innerType}]", rhs = rhs)
+              }
+              val opRef: ValDef =
+                if (m.isVal) m.copy(rhs = injOpCall(name, sealedTrait.name))
+                else         m.copy(rhs = injOpCall(name, sealedTrait.name, tparams, paramss))
 
-        val concreteValsDefs: Seq[ValOrDefDef] = stats.collect {
-          case m @ DefDef(_, _, _, _, _, rhs) if rhs.nonEmpty => m
-          case v @ ValDef(_, _, _, rhs)       if rhs.nonEmpty => v
-        }
+              (op, opRef)
+          }.unzip
 
-        val (concreteOps: Seq[DefDef], concreteOpsRef: Seq[ValOrDefDef], concreteNonOps: Seq[ValOrDefDef], concreteNonOpsRef: Seq[ValOrDefDef]) = {
-          val (ops, nonOps) = concreteValsDefs.partition {
-            case DefDef(_, _, _, _, AppliedTypeTree(Ident(outerType), _), _) => outerType == typeAlias.name
-            case ValDef(_, _, AppliedTypeTree(Ident(outerType), _), _)       => outerType == typeAlias.name
-            case _ => false
-          }
-
+        val (concreteOps: Seq[ValDef], concreteOpsRef: Seq[ValDef], concreteNonOps: Seq[ValDef], concreteNonOpsRef: Seq[ValDef]) = {
+          val (ops, nonOps) = concreteMem.partition(alias.name === _.outerType)
+          val allOps: Seq[ValDef] = liftedOps ++ ops
+          def isCallingOp(name: Term.Name) = allOps.exists(_.name.syntax == name.syntax)
           // append type param F to all call to methods that will be in injectOps Obj (to satisfy F[_]).
-          val addFTransformer = new Transformer {
-            val injectOps = liftedOps ++ ops
-            override def transform(tree: c.universe.Tree): c.universe.Tree = tree match {
-              case Apply(Select(TypeApply(Ident(name:TermName), tp), name2), args) if injectOps.exists(_.name == name) =>
-                super.transform(Apply(Select(TypeApply(Ident(name), tq"F" :: tp), name2), args))
-              case Apply(TypeApply(Ident(name:TermName), tp), args) if injectOps.exists(_.name == name) =>
-                super.transform(q"$name[..${tq"F" +: tp}](..$args)")
-              case _ =>
-                super.transform(tree)
+          def addFTransformer(term: Term): Term = {
+            term.transform {
+              case q"${name: Term.Name}[..$tp].$methName(..$args)" if isCallingOp(name) => q"$name[F, ..$tp].$methName(..$args)"
+              case q"${name: Term.Name}[..$tp](..$args)"           if isCallingOp(name) => q"$name[F, ..$tp](..$args)"
+            } match {
+              case t: Term => t
+              case t => abort(s"Failed transformation: $t")
             }
           }
 
           // defs that contain the real implementation
-          val injectOps: Seq[DefDef] = ops.map {
-            case DefDef(mods, tname, tp, paramss, AppliedTypeTree(_, innerType), rhs) =>
-              q"$mods def $tname[..${F +: tp}](...${paramss :+ implicitInject}): Free[F, ..$innerType] = ${addFTransformer.transform(rhs)}".asInstanceOf[DefDef]
-            case ValDef(mods, tname, AppliedTypeTree(_, innerType), rhs) =>
-              q"$mods def $tname[$F](..$implicitInject): Free[F, ..$innerType] = ${addFTransformer.transform(rhs)}".asInstanceOf[DefDef]
+          val injectOps = ops.collect {
+            case m@ValDef(_, _, tparams, paramss, _, Some(rhs), _, _) =>
+              m.copy(tparams = F +: tparams, paramss = paramss :+ implicitInject, rt = t"Free[F, ..${m.innerType}]", rhs = addFTransformer(rhs))
           }
 
           // vals and defs that call to defs in injectOps
-          val opsRef = ops.map {
-            case DefDef(mods, name, tparams, paramss, rt, _) =>
-              val rhs = methodCallFmt(q"injectOps.$name[..${sealedTrait.name +: tparams.map(_.name)}]", paramssToArgs(paramss))
-              DefDef(mods, name, tparams, paramss, rt, rhs)
-            case ValDef(mods, name, rt, _) =>
-              ValDef(mods, name, rt, q"injectOps.$name[${sealedTrait.name}]")
-          }
+          val opsRef = ops.map(m => mkInjOpCall(m, sealedTrait.name))
 
           // vals and defs that call other vals and defs in injectOps
-          val nonOpsRef = nonOps.map {
-            case DefDef(mods, name, tparams, paramss, rt, _) =>
-              val rhs = methodCallFmt(q"injectOps.$name[..${tparams.map(_.name)}]", paramssToArgs(paramss))
-              DefDef(mods, name, tparams, paramss, rt, rhs)
-            case ValDef(mods, name, rt, _) =>
-              ValDef(mods, name, rt, q"injectOps.$name")
-          }
+          val nonOpsRef = nonOps.map(m => mkInjOpCall(m))
 
           (injectOps, opsRef, nonOps, nonOpsRef)
         }
 
-        val opsObj = {
+        val opsObj =
           q"""
             object ops {
-              $typeAlias
-              ..$concreteNonOpsRef
-              ..$liftedOpsRef
-              ..$concreteOpsRef
+              $alias
+              ..${concreteNonOpsRef.map(_.toExpr)}
+              ..${liftedOpsRef.map(_.toExpr)}
+              ..${concreteOpsRef.map(_.toExpr)}
             }
           """
-        }
 
-        val injectOpsObj = {
+        val injectOpsObj =
           q"""
             object injectOps {
-              ..$concreteNonOps
-              ..$liftedOps
-              ..$concreteOps
+              ..${concreteNonOps.map(_.toDef)}
+              ..${liftedOps.map(_.toDef)}
+              ..${concreteOps.map(_.toDef)}
             }
            """
-        }
 
         val injectClass = {
-          val opsRef = (liftedOps ++ concreteOps).map {
-            case q"$_ def $tname[..${tparams:List[TypeDef]}](...${paramss:Paramss}): $tpt = $_" =>
-              val rhs = methodCallFmt(q"injectOps.$tname[..${tparams.map(_.name)}]", paramssToArgs(paramss.dropRight(1)))
-              // tail to remove the F[_] from tparams; dropRight(1) to remove implicit param
-              q"def $tname[..${tparams.tail}](...${paramss.dropRight(1)}): $tpt = $rhs"
-          }
+          // tail to remove the F[_] from tparams; dropRight(1) to remove implicit param
+          val opsRef = (liftedOps ++ concreteOps).map(m => mkInjOpCall(m.copy(tparams = m.tparams.tail, paramss = m.paramss.dropRight(1)), t"F"))
           q"""
             class Injects[F[_]](implicit I: Inject[${sealedTrait.name}, F]) {
-              ..$opsRef
-              ..$concreteNonOpsRef
+              ..${opsRef.map(_.toExpr)}
+              ..${concreteNonOpsRef.map(_.toExpr)}
             }
-
             object Injects {
               implicit def injectOps[F[_]](implicit I: Inject[${sealedTrait.name}, F]): Injects[F] = new Injects[F]
             }
            """
         }
 
-        val methodsToBeImpl: Seq[DefDef] = absValsDefsOps.map {
-          case DefDef(mods, name, tparams, paramss, rt, _) =>
-            DefDef(mods, name, tparams, paramss, replaceContainerType(rt, TypeName("M")), EmptyTree)
-          case ValDef(mods, name, rt, _) =>
-            DefDef(mods, name, List.empty, List.empty, replaceContainerType(rt, TypeName("M")), EmptyTree)
+        val genCaseClassesAndObjADT = {
+          val caseClasses = absMemberOps.map { m =>
+            val ext = template"${sealedTrait.ref}[..${m.innerType}]"
+            if (m.isVal) q"case object ${m.name.capitalize} extends $ext"
+            else         q"case class ${m.name.typeName.capitalize}[..${m.tparams}](..${m.paramss.flatten}) extends $ext"
+          }
+          q"object ${sealedTrait.termName} { ..$caseClasses }"
         }
 
-        val genCaseClassesAndObjADT = {
-          val caseClasses = absValsDefsOps.collect {
-            case q"$_ def $tname[..$tparams](...$paramss): ${AppliedTypeTree(_, returnType)} = $expr" =>
-              q"case class ${TypeName(tname.toString.capitalize)}[..$tparams](..${fixSI88771(paramss).flatten}) extends ${sealedTrait.name}[..$returnType]"
-            case ValDef(_, name, AppliedTypeTree(_, returnType), _) =>
-              q"case object ${TermName(name.toString.capitalize)} extends ${sealedTrait.name}[..$returnType]"
+        val interp = {
+          val cases = absMemberOps.map { m =>
+            val binds = m.paramss.flatten.map(p => parg"${p.name.patTerm}")
+            val args = m.paramss.map(_.map(_.name.termArg))
+            val rhs: Term = if (args.isEmpty) m.name else q"${m.name}(...$args)"
+            if (m.isDef) p"case ${adt(m.name)}(..$binds) => $rhs"
+            else         p"case ${adt(m.name)} => ${m.name}"
           }
-          q"object ${sealedTrait.name.toTermName} { ..$caseClasses }"
+          val op = Type.Name(s"${tname.value}.ops.${alias.name.value}[A]") // full path; better way to do this?
+          val monad = Type.Name(s"$root.Monad[M]")
+          val run = q"def run[A](op: $op)(implicit m: $monad): M[A] = op.foldMap(this)"
+          val methodsToBeImpl = absMemberOps.map(m => m.copy(rt = t"M[..${m.innerType}]").toAbsDef)
+          q"""
+            trait Interp[M[_]] extends (${tname.termName}.${sealedTrait.name} ~> M) {
+              def apply[A](fa: ${tname.termName}.${sealedTrait.name}[A]): M[A] = fa match {
+                ..case $cases
+              }
+              $run
+              ..$methodsToBeImpl
+            }
+           """
         }
 
         val genCompanionObj =
           q"""
-            object ${tpname.toTermName} {
+            object ${tname.termName} {
               ..$imports
-              import scala.language.higherKinds
               $sealedTrait
               $genCaseClassesAndObjADT
-              ..$opsObj
-              ..$injectOpsObj
-              ..$injectClass
-              trait Interp[M[_]] {
-                import ops._
-                val interpreter = new (${sealedTrait.name} ~> M) {
-                  def apply[A](fa: ${sealedTrait.name}[A]): M[A] = fa match {
-                    case ..${absValsDefsOps.map {
-                      case DefDef(_, name, _, paramss, rt, _) =>
-                        val binds = paramss.flatMap(_.collect { case t:ValDef => Bind (t.name, Ident(termNames.WILDCARD))})
-                        val args = paramss.map(_.collect { case t:ValDef => Ident(t.name.toTermName) })
-                        val rhs = if (args.isEmpty) q"$name" else q"$name(...$args)"
-                        cq"${adt(sealedTrait, name)}(..$binds) => $rhs"
-                      case ValDef(_, name, _, _) =>
-                        cq"${adt(sealedTrait, name)} => $name"
-                    }}
-                  }
-                }
-                def run[A](op: ${typeAlias.name}[A])(implicit m: Monad[M]): M[A] = op.foldMap(interpreter)
-                ..$methodsToBeImpl
-              }
+              $opsObj
+              $injectOpsObj
+              ..${injectClass.stats}
+              $interp
             }
-           """
+          """
 
-        val gen = q"..${List(q"trait $tpname", genCompanionObj)}"
-//        println(showCode(gen))
-        c.Expr[Any](gen)
-
-      case other => c.abort(c.enclosingPosition, s"${showRaw(other)}")
+        Term.Block(Seq(q"trait $tname", genCompanionObj))
+      case _ =>
+        abort("@free must annotate an trait.")
     }
   }
-
 }

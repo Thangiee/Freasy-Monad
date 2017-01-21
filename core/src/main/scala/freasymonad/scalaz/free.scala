@@ -2,16 +2,11 @@ package freasymonad.scalaz
 
 import freasymonad.FreeImpl
 
-import scala.annotation.{StaticAnnotation, compileTimeOnly}
-import scala.language.experimental.macros
-import scala.reflect.macros.blackbox
+import scala.meta._
 
-@compileTimeOnly("enable macro paradise to expand macro annotations")
-class free extends StaticAnnotation {
-  def macroTransform(annottees: Any*): Any = macro ScalazFreeImpl.impl
-}
-
-class ScalazFreeImpl(ctx: blackbox.Context) extends FreeImpl(ctx) {
-  import c.universe._
-  val imports: Tree = q"import scalaz._"
+class free extends scala.annotation.StaticAnnotation {
+  inline def apply(defn: Any): Any = meta {
+    val imports = scala.collection.immutable.Seq(q"import scalaz._")
+    FreeImpl.apply(defn, "scalaz", imports)
+  }
 }
