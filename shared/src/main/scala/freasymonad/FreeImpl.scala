@@ -1,6 +1,7 @@
 package freasymonad
 
 import freasymonad.FreeUtils._
+import freasymonad.libs.Lib
 
 import scala.collection.immutable.Seq
 import scala.meta.Ctor.Ref
@@ -9,6 +10,27 @@ import scala.meta.Pat.Var
 import scala.meta.Term.Name
 import scala.meta._
 import scala.language.implicitConversions
+
+private[freasymonad] object libs {
+  trait Lib {
+    def root: String
+    def imports: Seq[Stat]
+  }
+
+  val Cats = new Lib {
+    val root: String = "cats"
+    val imports: Seq[Stat] =
+      q"""
+        import cats._
+        import free._
+        import scala.language.higherKinds
+      """.stats
+  }
+  val Scalaz = new Lib {
+    val root: String = "scalaz"
+    val imports: Seq[Stat] = scala.collection.immutable.Seq(q"import scalaz._")
+  }
+}
 
 private[freasymonad] object FreeUtils {
   type Params = Seq[Term.Param]
@@ -123,7 +145,7 @@ private[freasymonad] object FreeUtils {
 
 private[freasymonad] object FreeImpl {
 
-  def apply(defn: Tree, root: String, imports: Seq[Stat]): Term.Block = {
+  def apply(defn: Tree, lib: Lib): Term.Block = {
     import HasName.ops._
 
     defn match {
@@ -256,7 +278,7 @@ private[freasymonad] object FreeImpl {
             else         p"case ${adt(m.name)} => ${m.name}"
           }
           val op = Type.Name(s"${tname.value}.ops.${alias.name.value}[A]") // full path; better way to do this?
-          val monad = Type.Name(s"$root.Monad[M]")
+          val monad = Type.Name(s"${lib.root}.Monad[M]")
           val run = q"def run[A](op: $op)(implicit m: $monad): M[A] = op.foldMap(this)"
           val methodsToBeImpl = absMemberOps.map(m => m.copy(rt = t"M[..${m.innerType}]").toAbsDef)
           q"""
@@ -273,7 +295,7 @@ private[freasymonad] object FreeImpl {
         val genCompanionObj =
           q"""
             object ${tname.termName} {
-              ..$imports
+              ..${lib.imports}
               $sealedTrait
               $genCaseClassesAndObjADT
               $opsObj
