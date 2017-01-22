@@ -40,6 +40,17 @@ private[freasymonad] object FreeUtils {
   val paramssToArgsFlatten: Paramss => Seq[Term.Arg] =
     paramss => paramss.flatten.map(p => Term.Name(p.name.value))
 
+  implicit class ParamsOps(val params: Params) extends AnyVal {
+    def hasImplicit: Boolean = params match {
+      case param"implicit $_: $_" :: _ => true
+      case _ => false
+    }
+  }
+
+  implicit class ParamssOps(val paramss: Paramss) extends AnyVal {
+    def dropImplicitParams: Paramss = paramss.filterNot(_.hasImplicit)
+  }
+
   // todo: implement without out old macros
   import simulacrum._
   @typeclass trait HasName[A] {
@@ -126,7 +137,7 @@ private[freasymonad] object FreeUtils {
   def injOpCall(name: Term.Name, typeName: Option[Type.Name] = None, tparams: Seq[Type.Param] = Nil, paramss: Paramss = Nil): Term = {
     val tNames = tparams.map(_.name.typeName)
     val tp = typeName.map(_ +: tNames).getOrElse(tNames)
-    val args = paramss.map(_.map(_.name.termArg))
+    val args = paramss.dropImplicitParams.map(_.map(_.name.termArg))
     if (tp.isEmpty) {
       if (paramss.isEmpty) q"injectOps.$name" else q"injectOps.$name(...$args)"
     } else {
@@ -173,7 +184,7 @@ private[freasymonad] object FreeImpl {
 
         val adt: (Term.Name) => Term.Select = name => q"${sealedTrait.termName}.${name.capitalize}"
 
-        val implicitInject = Seq(param"implicit I: Inject[${sealedTrait.name.tpe}, F]")
+        val implicitInject = param"implicit I: Inject[${sealedTrait.name.tpe}, F]"
         val F: Type.Param = tparam"F[_]"
 
         val members: Seq[ValDef] = ValDef(stats)
@@ -186,14 +197,19 @@ private[freasymonad] object FreeImpl {
         val (liftedOps: Seq[ValDef], liftedOpsRef: Seq[ValDef]) =
           absMemberOps.collect {
             case m@ValDef(_, isVal, name, tparams, paramss, _, _) =>
-              val args = paramssToArgsFlatten(paramss)
               val op: ValDef = {
+                val args = paramssToArgsFlatten(paramss)
+                val paramssWithImplInj =
+                  m.paramss.reverse match {
+                    case (params) :: t if params.hasImplicit => ((params :+ implicitInject) +: t).reverse // group implicitInject with other implicit param
+                    case _                                   => m.paramss :+ Seq(implicitInject)
+                  }
                 val rhs = if (isVal) q"Free.liftF(I.inj(${adt(name)}))" else q"Free.liftF(I.inj(${adt(name)}(..$args)))"
-                m.copy(tparams = F +: m.tparams, paramss = m.paramss :+ implicitInject, rt = t"Free[F, ..${m.innerType}]", rhs = rhs)
+                m.copy(tparams = F +: m.tparams, paramss = paramssWithImplInj, rt = t"Free[F, ..${m.innerType}]", rhs = rhs)
               }
               val opRef: ValDef =
                 if (m.isVal) m.copy(rhs = injOpCall(name, sealedTrait.name))
-                else         m.copy(rhs = injOpCall(name, sealedTrait.name, tparams, paramss))
+                else         m.copy(rhs = injOpCall(name, sealedTrait.name, tparams, paramss.dropImplicitParams))
 
               (op, opRef)
           }.unzip
@@ -216,7 +232,7 @@ private[freasymonad] object FreeImpl {
           // defs that contain the real implementation
           val injectOps = ops.collect {
             case m@ValDef(_, _, _, tparams, paramss, _, Some(rhs)) =>
-              m.copy(tparams = F +: tparams, paramss = paramss :+ implicitInject, rt = t"Free[F, ..${m.innerType}]", rhs = addFTransformer(rhs))
+              m.copy(tparams = F +: tparams, paramss = paramss :+ Seq(implicitInject), rt = t"Free[F, ..${m.innerType}]", rhs = addFTransformer(rhs))
           }
 
           // vals and defs that call to defs in injectOps
@@ -248,8 +264,8 @@ private[freasymonad] object FreeImpl {
            """
 
         val injectClass = {
-          // tail to remove the F[_] from tparams; dropRight(1) to remove implicit param
-          val opsRef = (liftedOps ++ concreteOps).map(m => mkInjOpCall(m.copy(tparams = m.tparams.tail, paramss = m.paramss.dropRight(1)), t"F"))
+          // tail to remove the F[_] from tparams
+          val opsRef = (liftedOps ++ concreteOps).map(m => mkInjOpCall(m.copy(tparams = m.tparams.tail), t"F"))
           q"""
             class Injects[F[_]](implicit I: Inject[${sealedTrait.name}, F]) {
               ..${opsRef.map(_.toExpr)}
@@ -265,7 +281,7 @@ private[freasymonad] object FreeImpl {
           val caseClasses = absMemberOps.map { m =>
             val ext = template"${sealedTrait.ref}[..${m.innerType}]"
             if (m.isVal) q"case object ${m.name.capitalize} extends $ext"
-            else         q"case class ${m.name.typeName.capitalize}[..${m.tparams}](..${m.paramss.flatten}) extends $ext"
+            else         q"case class ${m.name.typeName.capitalize}[..${m.tparams}](..${m.paramss.flatten.map(_.copy(mods = Nil))}) extends $ext"
           }
           q"object ${sealedTrait.termName} { ..$caseClasses }"
         }
