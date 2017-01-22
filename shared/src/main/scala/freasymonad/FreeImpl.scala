@@ -52,7 +52,7 @@ private[freasymonad] object FreeUtils {
     def ref(a: A): Ref.Name = Ctor.Ref.Name(unlift(a))
     def patTerm(a: A): Var.Term = Pat.Var.Term(termName(a))
     def termArg(a: A): Term.Arg = termName(a)
-    def ===(a: A, tpe: Type): Boolean = tpe.syntax.startsWith(unlift(a))
+    def ===(a: A, tpe: Type): Boolean = tpe.syntax == unlift(a)
   }
 
   object HasName {
@@ -82,7 +82,7 @@ private[freasymonad] object FreeUtils {
 
   import HasName.ops._
 
-  case class ValDef(isVal: Boolean, name: Term.Name, tparams: Seq[Type.Param], paramss: Paramss, rt: Type, rhs: Option[Term], mods: Seq[Mod] = Nil, pos: Position = Position.None) {
+  case class ValDef(mods: Seq[Mod] = Nil, isVal: Boolean, name: Name, tparams: Seq[Type.Param], paramss: Paramss, rt: Type, rhs: Option[Term]) {
     val outerType: Type = rt match {
       case t"$outer[..$_]" => outer
       case _ => t"Any"
@@ -101,17 +101,26 @@ private[freasymonad] object FreeUtils {
   }
   object ValDef {
     def apply(d: Defn.Def): ValDef = d match {
-      case q"..$mods def $name[..$tparams](...$paramss): $rt = $rhs" => ValDef(false, name, tparams, paramss, rt.getOrElse(t"Any"), rhs, mods, d.pos)
+      case q"..$mods def $name[..$tparams](...$paramss): $rt = $rhs" => ValDef(mods, false, name, tparams, paramss, rt.getOrElse(t"Any"), rhs)
     }
     def apply(v: Defn.Val): ValDef = v match {
-      case q"..$mods val $name: ${rt} = $rhs" => ValDef(true, Term.Name(name.syntax), Nil, Nil, rt.getOrElse(t"Any"), rhs, mods, v.pos)
+      case q"..$mods val $name: ${rt} = $rhs" => ValDef(mods, true, Term.Name(name.syntax), Nil, Nil, rt.getOrElse(t"Any"), rhs)
     }
     def apply(d: Decl.Def): ValDef = d match {
-      case q"..$mods def $name[..$tparams](...$paramss): $rt" => ValDef(false, name, tparams, paramss, rt, None, mods, d.pos)
+      case q"..$mods def $name[..$tparams](...$paramss): $rt" => ValDef(mods, false, name, tparams, paramss, rt, None)
     }
     def apply(v: Decl.Val): ValDef = v match {
-      case q"..$mods val $name: $rt" => ValDef(true, name.name, Nil, Nil, rt, None, mods, v.pos)
+      case q"..$mods val $name: $rt" => ValDef(mods, true, name.name, Nil, Nil, rt, None)
     }
+    def apply(stats: Seq[Stat]): Seq[ValDef] =
+      stats.collect {
+        case d @ Decl.Def(_, _, _, _, _)    => ValDef(d)
+        case d @ Defn.Def(_, _, _, _, _, _) => ValDef(d)
+        case v @ Decl.Val(_, _, _)          => ValDef(v)
+        case v @ Defn.Val(_, _, _, _)       => ValDef(v)
+        case v @ Decl.Var(_, _, _)          => abort(v.pos, s"var is not allow in @free")
+        case v @ Defn.Var(_, _, _, _)       => abort(v.pos, s"var is not allow in @free")
+      }
   }
 
   def injOpCall(name: Term.Name, typeName: Option[Type.Name] = None, tparams: Seq[Type.Param] = Nil, paramss: Paramss = Nil): Term = {
@@ -135,8 +144,8 @@ private[freasymonad] object FreeUtils {
         abort(s"Define the return type for:\n ${m.toAbsExpr.syntax}")
       case m if m.mods.map(_.syntax).exists(mod => mod == "private" || mod == "protected") =>
         abort(s"try using access modifier 'package-private' for:\n ${m.toAbsExpr.syntax}")
-      case m@ValDef(_, _, _, _, _, None, _, _) if !(aliasName === m.outerType) =>
-        abort(s"Abstract '${m.toAbsExpr.syntax}' needs to have return type ${aliasName.value}[${m.innerType.mkString(", ")}], otherwise, make it non-abstract.")
+      case m if m.rhs.isEmpty && !(aliasName === m.outerType) =>
+        abort(s"Abstract '${m.toAbsExpr.syntax}' needs to have return type ${aliasName.value}[${m.rt.syntax}], otherwise, make it non-abstract.")
       case _ =>
     }
   }
@@ -162,20 +171,12 @@ private[freasymonad] object FreeImpl {
             case t@Defn.Trait(_, name, _, _, _) if name.value == freeS.value => t
           }.getOrElse(abort(s"Require seal trait $freeS[A]"))
 
-        val adt: (Term.Name) => Term.Select =
-          name => q"${sealedTrait.termName}.${name.capitalize}"
+        val adt: (Term.Name) => Term.Select = name => q"${sealedTrait.termName}.${name.capitalize}"
 
         val implicitInject = Seq(param"implicit I: Inject[${sealedTrait.name.tpe}, F]")
         val F: Type.Param = tparam"F[_]"
 
-        val members: Seq[ValDef] = stats.collect {
-          case d @ Decl.Def(_, _, _, _, _)    => ValDef(d)
-          case d @ Defn.Def(_, _, _, _, _, _) => ValDef(d).copy(pos = d.pos)
-          case v @ Decl.Val(_, _, _)          => ValDef(v)
-          case v @ Defn.Val(_, _, _, _)       => ValDef(v)
-          case v @ Decl.Var(_, _, _)          => abort(v.pos, s"var is not allow in @free trait ${tname.value}")
-          case v @ Defn.Var(_, _, _, _)       => abort(v.pos, s"var is not allow in @free trait ${tname.value}")
-        }
+        val members: Seq[ValDef] = ValDef(stats)
 
         checkConstraint(members, alias.name)
 
@@ -184,7 +185,7 @@ private[freasymonad] object FreeImpl {
 
         val (liftedOps: Seq[ValDef], liftedOpsRef: Seq[ValDef]) =
           absMemberOps.collect {
-            case m@ValDef(isVal, name, tparams, paramss, _, _, _, _) =>
+            case m@ValDef(_, isVal, name, tparams, paramss, _, _) =>
               val args = paramssToArgsFlatten(paramss)
               val op: ValDef = {
                 val rhs = if (isVal) q"Free.liftF(I.inj(${adt(name)}))" else q"Free.liftF(I.inj(${adt(name)}(..$args)))"
@@ -214,7 +215,7 @@ private[freasymonad] object FreeImpl {
 
           // defs that contain the real implementation
           val injectOps = ops.collect {
-            case m@ValDef(_, _, tparams, paramss, _, Some(rhs), _, _) =>
+            case m@ValDef(_, _, _, tparams, paramss, _, Some(rhs)) =>
               m.copy(tparams = F +: tparams, paramss = paramss :+ implicitInject, rt = t"Free[F, ..${m.innerType}]", rhs = addFTransformer(rhs))
           }
 
@@ -260,7 +261,7 @@ private[freasymonad] object FreeImpl {
            """
         }
 
-        val genCaseClassesAndObjADT = {
+        val caseClassesAndObjADT = {
           val caseClasses = absMemberOps.map { m =>
             val ext = template"${sealedTrait.ref}[..${m.innerType}]"
             if (m.isVal) q"case object ${m.name.capitalize} extends $ext"
@@ -292,12 +293,12 @@ private[freasymonad] object FreeImpl {
            """
         }
 
-        val genCompanionObj =
+        val companionObj =
           q"""
             object ${tname.termName} {
               ..${lib.imports}
               $sealedTrait
-              $genCaseClassesAndObjADT
+              $caseClassesAndObjADT
               $opsObj
               $injectOpsObj
               ..${injectClass.stats}
@@ -305,7 +306,7 @@ private[freasymonad] object FreeImpl {
             }
           """
 
-        Term.Block(Seq(q"trait $tname", genCompanionObj))
+        Term.Block(Seq(q"trait $tname", companionObj))
       case _ =>
         abort("@free must annotate an trait.")
     }
