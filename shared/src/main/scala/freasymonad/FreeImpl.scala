@@ -271,26 +271,30 @@ private[freasymonad] object FreeImpl {
         }
 
         val interp = {
-          val cases = absMemberOps.map { m =>
-            val binds = m.paramss.flatten.map(p => parg"${p.name.patTerm}")
-            val args = m.paramss.map(_.map(_.name.termArg))
-            val rhs: Term = if (args.isEmpty) m.name else q"${m.name}(...$args)"
-            if (m.isDef) p"case ${adt(m.name)}(..$binds) => $rhs"
-            else         p"case ${adt(m.name)} => ${m.name}"
+          val apply = {
+            val cases = absMemberOps.map { m =>
+              val binds = m.paramss.flatten.map(p => parg"${p.name.patTerm}")
+              val args = m.paramss.map(_.map(_.name.termArg))
+              val rhs: Term = if (args.isEmpty) m.name else q"${m.name}(...$args)"
+              if (m.isDef) p"case ${adt(m.name)}(..$binds) => $rhs"
+              else p"case ${adt(m.name)} => ${m.name}"
+            }
+            if (cases.nonEmpty) q"def apply[A](fa: ${tname.termName}.${sealedTrait.name}[A]): M[A] = fa match { ..case $cases }"
+            else                q"def apply[A](fa: ${tname.termName}.${sealedTrait.name}[A]): M[A]"
           }
-          val op = Type.Name(s"${tname.value}.ops.${alias.name.value}[A]") // full path; better way to do this?
-          val monad = Type.Name(s"${lib.root}.Monad[M]")
-          val run = q"def run[A](op: $op)(implicit m: $monad): M[A] = op.foldMap(this)"
+          val run  = {
+            val op = Type.Name(s"${tname.value}.ops.${alias.name.value}[A]") // full path; better way to do this?
+            val monad = Type.Name(s"${lib.root}.Monad[M]")
+            q"def run[A](op: $op)(implicit m: $monad): M[A] = op.foldMap(this)"
+          }
           val methodsToBeImpl = absMemberOps.map(m => m.copy(rt = t"M[..${m.innerType}]").toAbsDef)
           q"""
             trait Interp[M[_]] extends (${tname.termName}.${sealedTrait.name} ~> M) {
-              def apply[A](fa: ${tname.termName}.${sealedTrait.name}[A]): M[A] = fa match {
-                ..case $cases
-              }
+              $apply
               $run
               ..$methodsToBeImpl
             }
-           """
+          """
         }
 
         val companionObj =
