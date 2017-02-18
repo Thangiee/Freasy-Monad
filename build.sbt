@@ -25,16 +25,15 @@ lazy val shared = crossProject.in(file("."))
       "-unchecked",
       "-Xplugin-require:macroparadise"
     ),
-    resolvers += "snapshots" at nexus + "content/repositories/snapshots",
+    resolvers += Resolver.bintrayIvyRepo("scalameta", "maven"),
     libraryDependencies ++= Seq(
       "org.typelevel" %% "cats" % "0.8.1" % "provided",
       "org.scalaz" %% "scalaz-core" % "7.2.7" % "provided",
       "org.scala-lang" % "scala-reflect" % "2.11.8",
       "org.scalatest" %% "scalatest" % "3.0.0" % "test",
-      "com.github.mpilquist" %% "simulacrum" % "0.10.0",
-      "org.scalameta" %% "scalameta"   % "1.4.0"
+      "org.scalameta" %% "scalameta" % "1.6.0-346-6ce2620f",
+      "org.scalameta" %% "contrib" % "1.6.0-346-6ce2620f"
     ),
-    addCompilerPlugin("org.scalamacros" % "paradise" % "2.1.0" cross CrossVersion.full),
     addCompilerPlugin("org.scalameta" % "paradise" % "3.0.0-beta4" cross CrossVersion.full),
     publishSettings
   )
