@@ -56,22 +56,29 @@ private[freasymonad] object FreeUtils {
 
   implicit def liftToSome[A](a: A): Some[A] = Some(a)
 
-  case class ValDef(mods: Seq[Mod] = Nil, isVal: Boolean, name: Name, tparams: Seq[Type.Param], paramss: Paramss, rt: Option[Type], rhs: Option[Term]) {
-    val rtOrAny: Type = rt.getOrElse(t"Any")
-    val outerType: Type = rtOrAny match {
+  case class ValDef(
+    mods: Seq[Mod] = Nil,
+    isVal: Boolean, name: Name,
+    tparams: Seq[Type.Param],
+    paramss: Paramss,
+    returnType: Option[Type],
+    rhs: Option[Term]
+  ) {
+    val returnTypeOrAny: Type = returnType.getOrElse(t"Any")
+    val outerType: Type = returnTypeOrAny match {
       case t"$outer[..$_]" => outer
       case _ => t"Any"
     }
-    val innerType: Seq[Type] = rtOrAny match {
+    val innerType: Seq[Type] = returnTypeOrAny match {
       case t"$_[..$inner]" => inner
       case _ => Seq.empty
     }
     val isDef: Boolean = !isVal
-    def toVal: Defn.Val = q"val ${name.asPatVarTerm}: $rtOrAny = ${rhs.getOrElse(q"???")}"
-    def toDef: Defn.Def = q"def $name[..$tparams](...$paramss): $rtOrAny = ${rhs.getOrElse(q"???")}"
+    def toVal: Defn.Val = q"val ${name.asPatVarTerm}: $returnTypeOrAny = ${rhs.getOrElse(q"???")}"
+    def toDef: Defn.Def = q"def $name[..$tparams](...$paramss): $returnTypeOrAny = ${rhs.getOrElse(q"???")}"
     def toExpr: Defn = if (isVal) toVal else toDef
-    def toAbsVal: Decl.Val = q"val ${name.asPatVarTerm}: $rtOrAny"
-    def toAbsDef: Decl.Def = q"def $name[..$tparams](...$paramss): $rtOrAny"
+    def toAbsVal: Decl.Val = q"val ${name.asPatVarTerm}: $returnTypeOrAny"
+    def toAbsDef: Decl.Def = q"def $name[..$tparams](...$paramss): $returnTypeOrAny"
     def toAbsExpr: Decl = if (isVal) toAbsVal else toAbsDef
   }
   object ValDef {
@@ -115,12 +122,13 @@ private[freasymonad] object FreeUtils {
 
   def checkConstraint(members: Seq[ValDef], aliasName: Type.Name): Unit = {
     members.foreach {
-      case m if m.rt.isEmpty =>
+      case m if m.returnType.isEmpty =>
         abort(s"Define the return type for:\n ${m.toAbsExpr}")
       case m if m.mods.map(_.toString).exists(mod => mod == "private" || mod == "protected") =>
         abort(s"try using access modifier 'package-private' for:\n ${m.toAbsExpr}")
       case m if m.rhs.isEmpty && !(aliasName === m.outerType) =>
-        abort(s"Abstract '${m.toAbsExpr}' needs to have return type ${aliasName.value}[${m.rtOrAny.toString}], otherwise, make it non-abstract.")
+        val requiredType = s"${aliasName.value}[${m.returnTypeOrAny.toString}]"
+        abort(s"Abstract '${m.toAbsExpr}' needs to have return type $requiredType, otherwise, make it non-abstract.")
       case _ =>
     }
   }
@@ -168,7 +176,7 @@ private[freasymonad] object FreeImpl {
                     case _                                   => m.paramss :+ Seq(implicitInject)
                   }
                 val rhs = if (isVal) q"Free.liftF(I.inj(${adt(name)}))" else q"Free.liftF(I.inj(${adt(name)}(..$args)))"
-                m.copy(tparams = F +: m.tparams, paramss = paramssWithImplInj, rt = t"Free[F, ..${m.innerType}]", rhs = rhs)
+                m.copy(tparams = F +: m.tparams, paramss = paramssWithImplInj, returnType = t"Free[F, ..${m.innerType}]", rhs = rhs)
               }
               val opRef: ValDef =
                 if (m.isVal) m.copy(rhs = injOpCall(name, sealedTrait.name))
@@ -195,7 +203,7 @@ private[freasymonad] object FreeImpl {
           // defs that contain the real implementation
           val injectOps = ops.collect {
             case m@ValDef(_, _, _, tparams, paramss, _, Some(rhs)) =>
-              m.copy(tparams = F +: tparams, paramss = paramss :+ Seq(implicitInject), rt = t"Free[F, ..${m.innerType}]", rhs = addFTransformer(rhs))
+              m.copy(tparams = F +: tparams, paramss = paramss :+ Seq(implicitInject), returnType = t"Free[F, ..${m.innerType}]", rhs = addFTransformer(rhs))
           }
 
           // vals and defs that call to defs in injectOps
@@ -266,7 +274,7 @@ private[freasymonad] object FreeImpl {
             val monad = Type.Name(s"${lib.root}.Monad[M]")
             q"def run[A](op: $op)(implicit m: $monad): M[A] = op.foldMap(this)"
           }
-          val methodsToBeImpl = absMemberOps.map(m => m.copy(rt = t"M[..${m.innerType}]").toAbsDef)
+          val methodsToBeImpl = absMemberOps.map(m => m.copy(returnType = t"M[..${m.innerType}]").toAbsDef)
           q"""
             trait Interp[M[_]] extends (${tname.asTerm}.${sealedTrait.name} ~> M) {
               $apply

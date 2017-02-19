@@ -29,7 +29,6 @@ lazy val shared = crossProject.in(file("."))
     libraryDependencies ++= Seq(
       "org.typelevel" %% "cats" % "0.8.1" % "provided",
       "org.scalaz" %% "scalaz-core" % "7.2.7" % "provided",
-      "org.scala-lang" % "scala-reflect" % "2.11.8",
       "org.scalatest" %% "scalatest" % "3.0.0" % "test",
       "org.scalameta" %% "scalameta" % "1.6.0-346-6ce2620f",
       "org.scalameta" %% "contrib" % "1.6.0-346-6ce2620f"
