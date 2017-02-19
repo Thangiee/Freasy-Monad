@@ -3,9 +3,10 @@ package compilation
 import cats._
 import cats.free._
 import freasymonad.cats.free
+import org.scalatest.FunSuite
 
 // Make sure vals and defs are compiled correctly for ops/injectOps/Inject
-object ValDefHandling extends App {
+class ValDefHandling extends FunSuite {
   @free trait KVStore {
     type KVStoreF[A] = Free[GrammarADT, A]
     sealed trait GrammarADT[A]
@@ -57,12 +58,15 @@ object ValDefHandling extends App {
   val d: KVStoreF[Unit] = deleteAll
   val e: KVStoreF[Option[String]] = foo[String]("")
 
-  assert(someVal == "a")
-  assert(someDef(1).contains(2))
-
   val interp = new KVStore.Interp[Id] {
     def get[T](key: String): Id[Option[T]] = ???
     def deleteAll: Id[Unit] = ???
+  }
+
+  test("correct ValDefHandling") {
+    import org.scalatest.Matchers._
+    someVal should equal("a")
+    someDef(1) should contain(2)
   }
 }
 

@@ -3,10 +3,10 @@ package compilation
 import cats._
 import cats.free._
 import freasymonad.cats.free
-
+import org.scalatest.{FunSuite, Matchers}
 import scala.collection.mutable
 
-object MultiParamsLists extends App {
+class MultiParamsLists extends FunSuite with Matchers {
   @free trait KVStore {
     type KVStoreF[A] = Free[GrammarADT, A]
     sealed trait GrammarADT[A]
@@ -41,6 +41,11 @@ object MultiParamsLists extends App {
       kvs(key) = value
     }
   }
-    val resId: Id[Option[Int]] = idInterpreter.run(program)
+
+  val resId: Id[Option[Int]] = idInterpreter.run(program)
+
+  test("correct MultiParamsLists") {
+    resId should be(Some(14))
+  }
 }
 
