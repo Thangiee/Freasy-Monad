@@ -1,4 +1,4 @@
-//crossScalaVersions in ThisBuild := Seq("2.11.8", "2.12.1") // meta is currently only for 2.11
+crossScalaVersions in ThisBuild := Seq("2.11.8", "2.12.1")
 scalaVersion in ThisBuild := "2.11.8"
 
 lazy val root = project.in(file("."))
@@ -30,10 +30,10 @@ lazy val shared = crossProject.in(file("."))
       "org.typelevel" %% "cats" % "0.9.0" % "provided",
       "org.scalaz" %% "scalaz-core" % "7.2.8" % "provided",
       "org.scalatest" %% "scalatest" % "3.0.0" % "test",
-      "org.scalameta" %% "scalameta" % "1.6.0-346-6ce2620f",
-      "org.scalameta" %% "contrib" % "1.6.0-346-6ce2620f"
+      "org.scalameta" %% "scalameta" % "1.6.0",
+      "org.scalameta" %% "contrib" % "1.6.0"
     ),
-    addCompilerPlugin("org.scalameta" % "paradise" % "3.0.0-beta4" cross CrossVersion.full),
+    addCompilerPlugin("org.scalameta" % "paradise" % "3.0.0-M7" cross CrossVersion.full),
     publishSettings
   )
   .jvmSettings()
