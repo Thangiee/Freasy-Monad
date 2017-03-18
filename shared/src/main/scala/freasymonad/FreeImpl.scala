@@ -144,8 +144,7 @@ private[freasymonad] object FreeImpl {
         val (alias: Defn.Type, freeS: Type.Name) =
           stats.collectFirst {
             case alias@q"..$_ type $_[..$_] = Free[$s, $_]" =>
-              val fixS =  Type.Name(s.toString.split('.').last) //todo: bug report
-              (alias, fixS)
+              (alias, s)
           }.getOrElse(abort("Require a type alias for Free[S, A]"))
 
         val sealedTrait: Trait =
