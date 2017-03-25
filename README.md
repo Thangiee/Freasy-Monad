@@ -1,10 +1,10 @@
-#Freasy Monad
+# Freasy Monad
 Freasy Monad library makes it **easy** to create **Free Monad** for [typelevel/cats](https://github.com/typelevel/cats)
 and [scalaz/scalaz](https://github.com/scalaz/scalaz).
 
 It also integrate nicely with Intellij through a plugin to provide proper highlighting & code completion. 
 
-##Getting started
+## Getting started
 
 Freasy Monad is currently available for Scala 2.11 and 2.12, and [Scala.js](http://www.scala-js.org/).
 
@@ -29,7 +29,7 @@ addCompilerPlugin("org.scalamacros" % "paradise" % "2.1.0" cross CrossVersion.fu
 
 Starting with version `0.5.0`, group ID has been changed from `com.thangiee` to `com.github.thangiee`.
 
-##`@free` macro
+## `@free` macro
 Key-value store example from [cats website](http://typelevel.org/cats/datatypes/freemonad.html) using `free` macro:
 
 ```scala
