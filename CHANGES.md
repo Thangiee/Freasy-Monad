@@ -1,3 +1,13 @@
+0.6.0-SNAPSHOT (2017/03/25)
+------------------
+* Switch to new macros -- [scala.meta](http://scalameta.org/)
+* Don't require installing an IntelliJ plugin to use this library.
+* Update Cats to `0.9.0` and Scalaz to `7.2.10` 
+* Fix [#9](https://github.com/Thangiee/Freasy-Monad/issues/9)
+* **BREAKING CHANGE!** `Interp` trait extends the natural transformation. 
+[See change](#https://github.com/Thangiee/Freasy-Monad/commit/a2ef4a1d81b3006ea2d43c993160ec1b2297bde7#diff-ec6e3fef806ba7c082d45e42023ef799L246) --
+[example](https://github.com/Thangiee/Freasy-Monad/commit/1db8e50ab171e5c9db9db2bf37a6ac6d83eaae05#diff-1abc6912ae87bf6a2fdf2b98ed7ae4e9L79) 
+
 0.5.0 (2016/11/06)
 ------------------
 * Add support for Scala 2.12 and Scala.js.

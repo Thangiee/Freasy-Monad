@@ -28,7 +28,7 @@ lazy val shared = crossProject.in(file("."))
     resolvers += Resolver.bintrayIvyRepo("scalameta", "maven"),
     libraryDependencies ++= Seq(
       "org.typelevel" %% "cats" % "0.9.0" % "provided",
-      "org.scalaz" %% "scalaz-core" % "7.2.8" % "provided",
+      "org.scalaz" %% "scalaz-core" % "7.2.10" % "provided",
       "org.scalatest" %% "scalatest" % "3.0.0" % "test",
       "org.scalameta" %% "scalameta" % "1.6.0",
       "org.scalameta" %% "contrib" % "1.6.0"

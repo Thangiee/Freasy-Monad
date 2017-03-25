@@ -1,13 +1,28 @@
 # Freasy Monad
 Freasy Monad library makes it **easy** to create **Free Monad** for [typelevel/cats](https://github.com/typelevel/cats)
-and [scalaz/scalaz](https://github.com/scalaz/scalaz).
-
-It also integrate nicely with Intellij through a plugin to provide proper highlighting & code completion. 
+and [scalaz/scalaz](https://github.com/scalaz/scalaz). 
 
 If you aren't afraid of bleeding edge, consider using the [meta branch](https://github.com/Thangiee/Freasy-Monad/tree/meta)
 which uses the new [scala.meta](http://scalameta.org/) macros. No IntelliJ plugin installation is require with this branch. 
 
 ## Getting started
+
+**Important** 
+* Version 0.6.0 uses the new [scala.meta](http://scalameta.org/). If using IntelliJ, please uninstall the 
+Freasy Monad Plugin if you have it installed. 
+
+* Replace `addCompilerPlugin("org.scalamacros" % "paradise" % "2.1.0" cross CrossVersion.full)` with
+  `addCompilerPlugin("org.scalameta" % "paradise" % "3.0.0-M7" cross CrossVersion.full)` for those 
+  coming from versions before 0.6.0.
+
+* IntelliJ syntax highlighting only works with 2.11 at the moment due to a known issue: 
+  ```
+  Mikhail Mutcianko @mutcianm Mar 20 10:17
+  @Thangiee @CremboC I see. The problem is caused by the IntelliJ converter that converts trees 
+  using 2.11 clasloader(since scala plugin is built with 2.11.8), and they cannot simply be fed 
+  into an annotation which runs in 2.12 classloader. This is a major issue and the fix for it 
+  might not be trivial, but i'm already working on it.
+  ```
 
 Freasy Monad is currently available for Scala 2.11 and 2.12, and [Scala.js](http://www.scala-js.org/).
 
@@ -15,19 +30,19 @@ If you are using `cats`, add the following to your build.sbt:
 
 ```scala
 libraryDependencies ++= Seq(
-  "com.github.thangiee" %% "freasy-monad" % "0.5.0",
-  "org.typelevel" %% "cats" % "0.8.1" 
+  "com.github.thangiee" %% "freasy-monad" % "0.6.0-SNAPSHOT",
+  "org.typelevel" %% "cats" % "0.9.0"
 )
-addCompilerPlugin("org.scalamacros" % "paradise" % "2.1.0" cross CrossVersion.full)
+addCompilerPlugin("org.scalameta" % "paradise" % "3.0.0-M7" cross CrossVersion.full)
 ```
 
 If you are using `scalaz`, add the following to your build.sbt: 
 ```scala
 libraryDependencies ++= Seq(
-  "com.github.thangiee" %% "freasy-monad" % "0.5.0",
-  "org.scalaz" %% "scalaz-core" % "7.2.7"
+  "com.github.thangiee" %% "freasy-monad" % "0.6.0-SNAPSHOT",
+  "org.scalaz" %% "scalaz-core" % "7.2.10"
 )
-addCompilerPlugin("org.scalamacros" % "paradise" % "2.1.0" cross CrossVersion.full)
+addCompilerPlugin("org.scalameta" % "paradise" % "3.0.0-M7" cross CrossVersion.full)
 ```
 
 Starting with version `0.5.0`, group ID has been changed from `com.thangiee` to `com.github.thangiee`.
@@ -82,7 +97,7 @@ Key-value store example from [cats website](http://typelevel.org/cats/datatypes/
     impureInterpreter.run(program)
   }
 ```
-Above example for scalaz [here](https://github.com/Thangiee/Freasy-Monad/blob/master/core/shared/src/test/scala/examples/scalaz/KVStore.scala).
+Above example for scalaz [here](https://github.com/Thangiee/Freasy-Monad/blob/meta/jvm/src/test/scala/examples/scalaz/KVStore.scala).
 
 During compile time, `KVStore` is expanded to something similar to:
 ```scala
@@ -118,15 +133,12 @@ During compile time, `KVStore` is expanded to something similar to:
     object Injects {
       implicit def injectOps[F[_]](implicit I: Inject[GrammarADT, F]): Inject[F] = new Inject[F]()
     }
-    trait Interp[M[_]] {
-      import ops._
-      val interpreter = new (GrammarADT ~> M) {
-        def apply[A](fa: GrammarADT[A]): M[A] = fa match {
-          case GrammarADT.Put(key, value) => put(key, value)
-          case GrammarADT.Get(key) => get(key)
-        }
+    trait Interp[M[_]] extends ~>[KVStore.GrammarADT, M] {
+      def apply[A](fa: KVStore.GrammarADT[A]): M[A] = fa match {
+        case GrammarADT.Put(key, value) => put(key, value)
+        case GrammarADT.Get(key) => get(key)
       }
-      def run[A](op: KVStoreF[A])(implicit m: Monad[M]): M[A] = op.foldMap(interpreter)
+      def run[A](op: KVStore.ops.KVStoreF[A])(implicit m: cats.Monad[M]): M[A] = op.foldMap(this)
       def put[T](key: String, value: T): M[Unit]
       def get[T](key: String): M[Option[T]]
     }
@@ -140,8 +152,8 @@ comes to writing free monad. The macro uses our abstract methods to define the A
 constructors to case classes, and do pattern matching on the ADT. 
 
 * This library also generate `Inject` for composing Free monads ADTs. See example for 
-[**cats**](https://github.com/Thangiee/Freasy-Monad/blob/master/core/shared/src/test/scala/examples/cats/ComposeFreeMonads.scala) and
-[**scalaz.**](https://github.com/Thangiee/Freasy-Monad/blob/master/core/shared/src/test/scala/examples/scalaz/ComposeFreeMonads.scala)
+[**cats**](https://github.com/Thangiee/Freasy-Monad/blob/meta/jvm/src/test/scala/examples/cats/ComposeFreeMonads.scala) and
+[**scalaz.**](https://github.com/Thangiee/Freasy-Monad/blob/meta/jvm/src/test/scala/examples/scalaz/ComposeFreeMonads.scala)
 
 * Writing an interpreter using Intellij becomes a breeze:
 
@@ -154,15 +166,9 @@ constructors to case classes, and do pattern matching on the ADT.
 
 ### IntelliJ support
 
-Intellij users need to install the **Freasy Monad Plugin** to get proper highlighting & code completion.
-
-1) Search and Install the plugin from IntelliJ. (settings > plugins > browse repos > search for "Freasy Monad Plugin" > install and restart) 
-
-  --**OR**--
-
-1) Download the plugin from https://github.com/Thangiee/Freasy-Monad/tree/master/plugin/bin
-
-2) Go to settings, Plugins section, then click on install plugin from disc, and choose this plugin. 
+Since switch to [scala.meta](http://scalameta.org/) in version 0.6.0, syntax highlighting & code completion in IntelliJ 
+works without needing to install a plugin. Therefore, please uninstall the **Freasy Monad Plugin** if you are 
+coming from a previous version. 
 
 ### Constraints
 
