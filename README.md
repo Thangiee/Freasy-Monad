@@ -4,6 +4,9 @@ and [scalaz/scalaz](https://github.com/scalaz/scalaz).
 
 It also integrate nicely with Intellij through a plugin to provide proper highlighting & code completion. 
 
+If you aren't afraid of bleeding edge, consider using the [meta branch](https://github.com/Thangiee/Freasy-Monad/tree/meta)
+which uses the new [scala.meta](http://scalameta.org/) macros. No IntelliJ plugin installation is require with this branch. 
+
 ## Getting started
 
 Freasy Monad is currently available for Scala 2.11 and 2.12, and [Scala.js](http://www.scala-js.org/).
