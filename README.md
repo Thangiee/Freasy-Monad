@@ -15,15 +15,6 @@ Freasy Monad Plugin if you have it installed.
   `addCompilerPlugin("org.scalameta" % "paradise" % "3.0.0-M7" cross CrossVersion.full)` for those 
   coming from versions before 0.6.0.
 
-* IntelliJ syntax highlighting only works with 2.11 at the moment due to a known issue: 
-  ```
-  Mikhail Mutcianko @mutcianm Mar 20 10:17
-  @Thangiee @CremboC I see. The problem is caused by the IntelliJ converter that converts trees 
-  using 2.11 clasloader(since scala plugin is built with 2.11.8), and they cannot simply be fed 
-  into an annotation which runs in 2.12 classloader. This is a major issue and the fix for it 
-  might not be trivial, but i'm already working on it.
-  ```
-
 Freasy Monad is currently available for Scala 2.11 and 2.12, and [Scala.js](http://www.scala-js.org/).
 
 If you are using `cats`, add the following to your build.sbt: 
@@ -33,7 +24,7 @@ libraryDependencies ++= Seq(
   "com.github.thangiee" %% "freasy-monad" % "0.6.0-SNAPSHOT",
   "org.typelevel" %% "cats" % "0.9.0"
 )
-addCompilerPlugin("org.scalameta" % "paradise" % "3.0.0-M7" cross CrossVersion.full)
+addCompilerPlugin("org.scalameta" % "paradise" % "3.0.0-M8" cross CrossVersion.full)
 ```
 
 If you are using `scalaz`, add the following to your build.sbt: 
@@ -42,7 +33,7 @@ libraryDependencies ++= Seq(
   "com.github.thangiee" %% "freasy-monad" % "0.6.0-SNAPSHOT",
   "org.scalaz" %% "scalaz-core" % "7.2.10"
 )
-addCompilerPlugin("org.scalameta" % "paradise" % "3.0.0-M7" cross CrossVersion.full)
+addCompilerPlugin("org.scalameta" % "paradise" % "3.0.0-M8" cross CrossVersion.full)
 ```
 
 Starting with version `0.5.0`, group ID has been changed from `com.thangiee` to `com.github.thangiee`.

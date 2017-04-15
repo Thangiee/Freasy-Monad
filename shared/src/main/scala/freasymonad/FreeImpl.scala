@@ -9,6 +9,7 @@ import scala.language.implicitConversions
 import scala.meta.Defn.Trait
 import scala.meta.Term.Name
 import scala.meta._
+import scala.meta.contrib._
 
 private[freasymonad] object libs {
   trait Lib {
