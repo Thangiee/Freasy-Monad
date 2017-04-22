@@ -2,9 +2,6 @@
 Freasy Monad library makes it **easy** to create **Free Monad** for [typelevel/cats](https://github.com/typelevel/cats)
 and [scalaz/scalaz](https://github.com/scalaz/scalaz). 
 
-If you aren't afraid of bleeding edge, consider using the [meta branch](https://github.com/Thangiee/Freasy-Monad/tree/meta)
-which uses the new [scala.meta](http://scalameta.org/) macros. No IntelliJ plugin installation is require with this branch. 
-
 ## Getting started
 
 **Important** 
@@ -12,7 +9,7 @@ which uses the new [scala.meta](http://scalameta.org/) macros. No IntelliJ plugi
 Freasy Monad Plugin if you have it installed. 
 
 * Replace `addCompilerPlugin("org.scalamacros" % "paradise" % "2.1.0" cross CrossVersion.full)` with
-  `addCompilerPlugin("org.scalameta" % "paradise" % "3.0.0-M7" cross CrossVersion.full)` for those 
+  `addCompilerPlugin("org.scalameta" % "paradise" % "3.0.0-M8" cross CrossVersion.full)` for those 
   coming from versions before 0.6.0.
 
 Freasy Monad is currently available for Scala 2.11 and 2.12, and [Scala.js](http://www.scala-js.org/).
@@ -21,7 +18,7 @@ If you are using `cats`, add the following to your build.sbt:
 
 ```scala
 libraryDependencies ++= Seq(
-  "com.github.thangiee" %% "freasy-monad" % "0.6.0-SNAPSHOT",
+  "com.github.thangiee" %% "freasy-monad" % "0.6.0",
   "org.typelevel" %% "cats" % "0.9.0"
 )
 addCompilerPlugin("org.scalameta" % "paradise" % "3.0.0-M8" cross CrossVersion.full)
@@ -30,8 +27,8 @@ addCompilerPlugin("org.scalameta" % "paradise" % "3.0.0-M8" cross CrossVersion.f
 If you are using `scalaz`, add the following to your build.sbt: 
 ```scala
 libraryDependencies ++= Seq(
-  "com.github.thangiee" %% "freasy-monad" % "0.6.0-SNAPSHOT",
-  "org.scalaz" %% "scalaz-core" % "7.2.10"
+  "com.github.thangiee" %% "freasy-monad" % "0.6.0",
+  "org.scalaz" %% "scalaz-core" % "7.2.11"
 )
 addCompilerPlugin("org.scalameta" % "paradise" % "3.0.0-M8" cross CrossVersion.full)
 ```
@@ -158,7 +155,7 @@ constructors to case classes, and do pattern matching on the ADT.
 ### IntelliJ support
 
 Since switch to [scala.meta](http://scalameta.org/) in version 0.6.0, syntax highlighting & code completion in IntelliJ 
-works without needing to install a plugin. Therefore, please uninstall the **Freasy Monad Plugin** if you are 
+works without needing to install a plugin. Therefore, the **Freasy Monad Plugin** needs to be uninstalled if you are 
 coming from a previous version. 
 
 ### Constraints
@@ -166,6 +163,6 @@ coming from a previous version.
 There are some constraints on `@free trait`, and if violated, will result in a compiler error.
 
 * Can not define `var`.
-* All `val` and `def` need to have explicit return type.
-* Abstract `val` and `def` must have return type of the defined type alias. From the example above, this would be `KVStoreF[...]`.
-* `private` and `protected` access modifiers are not allow, use package-private instead.
+* All `val` and `def` need to have an explicit return type.
+* Abstract `val` and `def` must have a return type of the defined type alias. From the example above, this would be `KVStoreF[...]`.
+* `private` and `protected` access modifiers are not allowed, use package-private instead.

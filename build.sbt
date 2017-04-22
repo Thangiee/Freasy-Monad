@@ -1,5 +1,5 @@
-crossScalaVersions in ThisBuild := Seq("2.11.10", "2.12.1")
-scalaVersion in ThisBuild := "2.12.1"
+crossScalaVersions in ThisBuild := Seq("2.11.11", "2.12.2")
+scalaVersion in ThisBuild := "2.12.2"
 
 lazy val root = project.in(file("."))
   .aggregate(js, jvm)
@@ -11,7 +11,7 @@ val groupId = "com.github.thangiee"
 lazy val shared = crossProject.in(file("."))
   .settings(
     name := "freasy-monad",
-    version := "0.6.0-SNAPSHOT",
+    version := "0.6.0",
     organization := groupId,
     scalacOptions ++= Seq(
       "-feature",
@@ -28,7 +28,7 @@ lazy val shared = crossProject.in(file("."))
     resolvers += Resolver.bintrayIvyRepo("scalameta", "maven"),
     libraryDependencies ++= Seq(
       "org.typelevel" %% "cats" % "0.9.0" % "provided",
-      "org.scalaz" %% "scalaz-core" % "7.2.10" % "provided",
+      "org.scalaz" %% "scalaz-core" % "7.2.11" % "provided",
       "org.scalatest" %% "scalatest" % "3.0.0" % "test",
       "org.scalameta" %% "scalameta" % "1.7.0",
       "org.scalameta" %% "contrib" % "1.7.0"
