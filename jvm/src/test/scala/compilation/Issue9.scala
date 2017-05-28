@@ -12,4 +12,5 @@ trait JsonReader[A]
 
   def get0[T: JsonReader](): List[T] = ???
   def get1[T](t: T)(implicit ev: JsonReader[T]): DataStoreF[List[T]]
+  def get2[T: JsonReader](t: T): DataStoreF[List[T]]
 }

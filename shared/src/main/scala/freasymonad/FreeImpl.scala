@@ -90,7 +90,11 @@ private[freasymonad] object FreeUtils {
       case q"..$mods val $name: $_ = $rhs" => ValDef(mods, true, Term.Name(name.toString), Nil, Nil, v.decltpe, rhs)
     }
     def apply(d: Decl.Def): ValDef = d match {
-      case q"..$mods def $name[..$tparams](...$paramss): $rt" => ValDef(mods, false, name, tparams, paramss, rt, None)
+      case q"..$mods def $name[$tpararm](...$paramss): $rt" if tpararm.cbounds.nonEmpty =>
+        val ev = Seq(param"implicit ev1: ${tpararm.cbounds.head}[${tpararm.name.asType}]")
+        ValDef(mods, false, name, Seq(tpararm.copy(cbounds = Nil)), paramss :+ ev, rt, None)
+      case q"..$mods def $name[..$tparams](...$paramss): $rt" =>
+        ValDef(mods, false, name, tparams, paramss, rt, None)
     }
     def apply(v: Decl.Val): ValDef = v match {
       case q"..$mods val $name: $rt" => ValDef(mods, true, name.name, Nil, Nil, rt, None)
