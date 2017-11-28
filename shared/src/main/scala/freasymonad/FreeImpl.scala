@@ -252,7 +252,7 @@ private[freasymonad] object FreeImpl {
           val caseClasses = absMemberOps.map { m =>
             val ext = template"${sealedTrait.name.asCtorRef}[..${m.innerType}]"
             if (m.isVal) q"case object ${m.name.capitalize.asTerm} extends $ext"
-            else         q"case class ${m.name.capitalize.asType}[..${m.tparams}](..${m.paramss.flatten.map(_.copy(mods = Nil))}) extends $ext"
+            else         q"final case class ${m.name.capitalize.asType}[..${m.tparams}](..${m.paramss.flatten.map(_.copy(mods = Nil))}) extends $ext"
           }
           q"object ${sealedTrait.name.asTerm} { ..$caseClasses }"
         }
