@@ -3,7 +3,6 @@ package freasymonad
 import freasymonad.syntax._
 import freasymonad.FreeUtils._
 import freasymonad.libs.Lib
-
 import scala.collection.immutable.Seq
 import scala.language.implicitConversions
 import scala.meta.Defn.Trait
@@ -40,8 +39,14 @@ private[freasymonad] object FreeUtils {
   type Params = Seq[Term.Param]
   type Paramss = Seq[Params]
 
+  def abort(position: inputs.Position, msg: String) =
+    throw new Exception(s"${position.text}. $position")
+
+  def abort(msg: String) =
+    throw new Exception(msg)
+
   // ex: convert (a: A)(b: B) to (a, b)
-  val paramssToArgsFlatten: Paramss => Seq[Term.Arg] =
+  val paramssToArgsFlatten: Paramss => Seq[Term.Name] =
     paramss => paramss.flatten.map(p => Term.Name(p.name.value))
 
   implicit class ParamsOps(val params: Params) extends AnyVal {
@@ -87,7 +92,7 @@ private[freasymonad] object FreeUtils {
       case q"..$mods def $name[..$tparams](...$paramss): $_ = $rhs" => ValDef(mods, false, name, tparams, paramss, d.decltpe, rhs)
     }
     def apply(v: Defn.Val): ValDef = v match {
-      case q"..$mods val $name: $_ = $rhs" => ValDef(mods, true, Term.Name(name.toString), Nil, Nil, v.decltpe, rhs)
+      case q"..$mods val ${name: Pat.Var}: $_ = $rhs" => ValDef(mods, true, name.name, Nil, Nil, v.decltpe, rhs)
     }
     def apply(d: Decl.Def): ValDef = d match {
       case q"..$mods def $name[$tpararm](...$paramss): $rt" if tpararm.cbounds.nonEmpty =>
@@ -96,7 +101,8 @@ private[freasymonad] object FreeUtils {
       case q"..$mods def $name[..$tparams](...$paramss): $rt" =>
         ValDef(mods, false, name, tparams, paramss, rt, None)
     }
-    def apply(v: Decl.Val): ValDef = v match {
+    def apply(v: Decl.Val): ValDef =
+      v match {
       case q"..$mods val $name: $rt" => ValDef(mods, true, name.name, Nil, Nil, rt, None)
     }
     def apply(stats: Seq[Stat]): Seq[ValDef] =
@@ -159,7 +165,7 @@ private[freasymonad] object FreeImpl {
 
         val adt: (Term.Name) => Term.Select = name => q"${sealedTrait.name.asTerm}.${name.capitalize.asTerm}"
 
-        val implicitInject = param"implicit I: Inject[${sealedTrait.name.tpe}, F]"
+        val implicitInject = param"implicit I: Inject[${sealedTrait.name}, F]"
         val F: Type.Param = tparam"F[_]"
 
         val members: Seq[ValDef] = ValDef(stats)
@@ -254,7 +260,7 @@ private[freasymonad] object FreeImpl {
 
         val caseClassesAndObjADT = {
           val caseClasses = absMemberOps.map { m =>
-            val ext = template"${sealedTrait.name.asCtorRef}[..${m.innerType}]"
+            val ext = template"${sealedTrait.name}[..${m.innerType}]"
             if (m.isVal) q"case object ${m.name.capitalize.asTerm} extends $ext"
             else         q"case class ${m.name.capitalize.asType}[..${m.tparams}](..${m.paramss.flatten.map(_.copy(mods = Nil))}) extends $ext"
           }
