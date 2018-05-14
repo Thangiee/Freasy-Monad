@@ -1,4 +1,4 @@
-crossScalaVersions in ThisBuild := Seq("2.11.11", "2.12.2")
+crossScalaVersions in ThisBuild := Seq("2.11.12", "2.12.4")
 scalaVersion in ThisBuild := "2.12.4"
 
 lazy val root = project.in(file("."))
@@ -11,7 +11,7 @@ val groupId = "com.github.thangiee"
 lazy val shared = crossProject.in(file("."))
   .settings(
     name := "freasy-monad",
-    version := "0.6.0",
+    version := "0.7.0",
     organization := groupId,
     scalacOptions ++= Seq(
       "-feature",
@@ -27,13 +27,13 @@ lazy val shared = crossProject.in(file("."))
     ),
     resolvers += Resolver.bintrayIvyRepo("scalameta", "maven"),
     libraryDependencies ++= Seq(
-      "org.typelevel" %% "cats" % "0.9.0" % "provided",
-      "org.scalaz" %% "scalaz-core" % "7.2.11" % "provided",
+      "org.typelevel" %% "cats-free" % "1.1.0" % "provided",
+      "org.scalaz" %% "scalaz-core" % "7.2.22" % "provided",
       "org.scalatest" %% "scalatest" % "3.0.0" % "test",
-      "org.scalameta" %% "scalameta" % "2.1.2",
-      "org.scalameta" %% "contrib" % "2.1.2"
+      "org.scalameta" %% "scalameta" % "1.8.0",
+      "org.scalameta" %% "contrib" % "1.8.0"
     ),
-    addCompilerPlugin("org.scalameta" % "paradise" % "3.0.0-M10" cross CrossVersion.full),
+    addCompilerPlugin("org.scalameta" % "paradise" % "3.0.0-M11" cross CrossVersion.full),
     publishSettings
   )
   .jvmSettings()

@@ -14,7 +14,7 @@ private[freasymonad] object syntax {
   }
 
   implicit class TreeSyntax(val t: Tree) extends AnyVal {
-    def ===(that: Tree): Boolean = t.isEqual[Structurally](that)
+    def ===(that: Tree): Boolean = t.isEqual[Syntactically](that)
   }
 }
 

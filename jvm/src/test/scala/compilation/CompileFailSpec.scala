@@ -112,4 +112,14 @@ class CompileFailSpec extends FunSuite with Matchers {
       |}
     """.stripMargin shouldNot compile
   }
+
+  test("Compiler error when trait is not sealed") {
+    """
+      |import cats.free._
+      |@freasymonad.cats.free trait KVStore {
+      |  type KVStoreF[A] = Free[GrammarADT, A]
+      |  trait GrammarADT[A]
+      |}
+    """.stripMargin shouldNot compile
+  }
 }

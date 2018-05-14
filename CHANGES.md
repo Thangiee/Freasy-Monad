@@ -1,3 +1,8 @@
+0.7.0 (2018/05/13)
+------------------
+* Update Cats to version `1.1.0`.
+* Update Scalaz to version `7.2.22`.
+
 0.6.0 (2017/04/22)
 ------------------
 * Switch to new macros -- [scala.meta](http://scalameta.org/)

@@ -5,11 +5,11 @@ and [scalaz/scalaz](https://github.com/scalaz/scalaz).
 ## Getting started
 
 **Important** 
-* Version 0.6.0 uses the new [scala.meta](http://scalameta.org/). If using IntelliJ, please uninstall the 
+* Version 0.6.0 uses [scala.meta](http://scalameta.org/). If using IntelliJ, please uninstall the 
 Freasy Monad Plugin if you have it installed. 
 
 * Replace `addCompilerPlugin("org.scalamacros" % "paradise" % "2.1.0" cross CrossVersion.full)` with
-  `addCompilerPlugin("org.scalameta" % "paradise" % "3.0.0-M8" cross CrossVersion.full)` for those 
+  `addCompilerPlugin("org.scalameta" % "paradise" % "3.0.0-M11" cross CrossVersion.full)` for those 
   coming from versions before 0.6.0.
 
 Freasy Monad is currently available for Scala 2.11 and 2.12, and [Scala.js](http://www.scala-js.org/).
@@ -18,19 +18,19 @@ If you are using `cats`, add the following to your build.sbt:
 
 ```scala
 libraryDependencies ++= Seq(
-  "com.github.thangiee" %% "freasy-monad" % "0.6.0",
-  "org.typelevel" %% "cats" % "0.9.0"
+  "com.github.thangiee" %% "freasy-monad" % "0.7.0",
+  "org.typelevel" %% "cats-free" % "1.1.0"
 )
-addCompilerPlugin("org.scalameta" % "paradise" % "3.0.0-M8" cross CrossVersion.full)
+addCompilerPlugin("org.scalameta" % "paradise" % "3.0.0-M11" cross CrossVersion.full)
 ```
 
 If you are using `scalaz`, add the following to your build.sbt: 
 ```scala
 libraryDependencies ++= Seq(
-  "com.github.thangiee" %% "freasy-monad" % "0.6.0",
-  "org.scalaz" %% "scalaz-core" % "7.2.11"
+  "com.github.thangiee" %% "freasy-monad" % "0.7.0",
+  "org.scalaz" %% "scalaz-core" % "7.2.22"
 )
-addCompilerPlugin("org.scalameta" % "paradise" % "3.0.0-M8" cross CrossVersion.full)
+addCompilerPlugin("org.scalameta" % "paradise" % "3.0.0-M11" cross CrossVersion.full)
 ```
 
 Starting with version `0.5.0`, group ID has been changed from `com.thangiee` to `com.github.thangiee`.

@@ -30,11 +30,10 @@ object ComposeFreeMonads extends App {
      } yield c
   }
 
-  type CatsApp[A] = Coproduct[DataSource.Adt, Interact.Adt, A]
+  type CatsApp[A] = EitherK[DataSource.Adt, Interact.Adt, A]
 
   // program1 and program2 are the same.
   // This library lets you choose which style you like.
-
   def program1(implicit I: Interact.Injects[CatsApp], D : DataSource.Injects[CatsApp]): Free[CatsApp, Unit] = {
     import I._, D._
     for {
