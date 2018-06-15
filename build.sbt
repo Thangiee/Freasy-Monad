@@ -3,7 +3,7 @@ scalaVersion in ThisBuild := "2.12.4"
 
 lazy val root = project.in(file("."))
   .aggregate(js, jvm)
-  .settings(publishArtifact := false)
+  .settings(skip in publish := true)
 
 val nexus = "https://oss.sonatype.org/"
 val groupId = "com.github.thangiee"
